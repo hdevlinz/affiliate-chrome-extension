@@ -1,48 +1,68 @@
-// @ts-ignore
 import { defineManifest } from '@crxjs/vite-plugin'
 import packageData from '../package.json'
 
-// @ts-ignore
 const isDev = process.env.NODE_ENV == 'development'
 
 export default defineManifest({
-  name: `${packageData.displayName || packageData.name}${isDev ? ` ➡️ Dev` : ''}`,
-  description: packageData.description,
-  version: packageData.version,
   manifest_version: 3,
+  name: `${packageData.displayName || packageData.name}${isDev ? ` ➡️ Dev` : ''}`,
+  version: packageData.version,
+  description: packageData.description,
   icons: {
     16: 'img/logo-16.png',
     32: 'img/logo-34.png',
     48: 'img/logo-48.png',
     128: 'img/logo-128.png',
   },
+  host_permissions: ['*://*.tiktok.com/*'],
+  permissions: ['tabs', 'activeTab', 'sidePanel', 'storage', 'scripting', 'notifications'],
   action: {
-    default_popup: 'popup.html',
-    default_icon: 'img/logo-48.png',
+    // default_popup: 'templates/popup.html',
+    default_title: packageData.displayName || packageData.name,
+    default_icon: {
+      16: 'img/logo-16.png',
+      32: 'img/logo-34.png',
+      48: 'img/logo-48.png',
+      128: 'img/logo-128.png',
+    },
   },
-  options_page: 'options.html',
-  devtools_page: 'devtools.html',
+  commands: {
+    _execute_action: {
+      suggested_key: {
+        default: 'Alt+A',
+      },
+    },
+  },
+  content_scripts: [
+    {
+      matches: ['*://*.tiktok.com/*'],
+      js: ['src/content/index.ts'],
+      run_at: 'document_start',
+    },
+  ],
   background: {
     service_worker: 'src/background/index.ts',
     type: 'module',
   },
-  content_scripts: [
-    {
-      matches: ['http://*/*', 'https://*/*'],
-      js: ['src/contentScript/index.ts'],
-    },
-  ],
+  // chrome_url_overrides: {
+  //   newtab: 'templates/newtab.html',
+  // },
   side_panel: {
-    default_path: 'sidepanel.html',
+    default_path: 'templates/sidepanel.html',
   },
+  // options_page: 'templates/options.html',
+  // devtools_page: 'templates/devtools.html',
   web_accessible_resources: [
     {
-      resources: ['img/logo-16.png', 'img/logo-34.png', 'img/logo-48.png', 'img/logo-128.png'],
-      matches: [],
+      resources: [
+        'img/logo-16.png',
+        'img/logo-34.png',
+        'img/logo-48.png',
+        'img/logo-128.png',
+        'inject/**',
+        'templates/**',
+      ],
+      matches: ['*://*.tiktok.com/*'],
     },
   ],
-  permissions: ['sidePanel', 'tabs', 'activeTab', 'storage', 'scripting'],
-  chrome_url_overrides: {
-    newtab: 'newtab.html',
-  },
 })

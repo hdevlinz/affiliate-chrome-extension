@@ -1,0 +1,116 @@
+{
+  "branches": [
+    "main"
+  ],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": "./config/release-rules.cjs"
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            {
+              "type": "ADU-*",
+              "section": "🚀 Task"
+            },
+            {
+              "type": "feat",
+              "section": "✨ Features"
+            },
+            {
+              "type": "fix",
+              "section": "🐛 Bug Fixes"
+            },
+            {
+              "type": "chore",
+              "section": "🛠 Miscellaneous Chores"
+            },
+            {
+              "type": "refactor",
+              "section": "🔧 Code Refactoring"
+            },
+            {
+              "type": "test",
+              "section": "🧪 Tests",
+              "hidden": true
+            },
+            {
+              "type": "build",
+              "section": "🏗 Build System",
+              "hidden": true
+            },
+            {
+              "type": "ci",
+              "section": "🚦 Continuous Integration",
+              "hidden": true
+            },
+            {
+              "type": "style",
+              "section": "🎨 Styles",
+              "hidden": true
+            },
+            {
+              "type": "docs",
+              "section": "📝 Documentation",
+              "hidden": true
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "docs/CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": false
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "npm run zip && zip -r public.zip public"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "package.json",
+          "docs/CHANGELOG.md"
+        ],
+        "message": "chore(release): update version to ${nextRelease.version}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "package/*.zip",
+            "label": "Adu-Affiliate-Crawler-v${nextRelease.version}"
+          },
+          {
+            "path": "public.zip",
+            "label": "Adu-Assets-v${nextRelease.version}"
+          }
+        ],
+        "successComment": false,
+        "failComment": false,
+        "labels": false,
+        "releasedLabels": false
+      }
+    ]
+  ]
+}
