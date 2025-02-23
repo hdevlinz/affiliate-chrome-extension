@@ -7,48 +7,48 @@ export default defineManifest({
   manifest_version: 3,
   name: `${packageData.displayName || packageData.name}${isDev ? ` ➡️ Dev` : ''}`,
   version: packageData.version,
-  description: packageData.description,
+  description: `${packageData.description}`,
   icons: {
     16: 'img/logo-16.png',
     32: 'img/logo-34.png',
     48: 'img/logo-48.png',
-    128: 'img/logo-128.png',
+    128: 'img/logo-128.png'
   },
-  host_permissions: ['*://*.tiktok.com/*'],
+  host_permissions: ['*://*.affiliate.tiktok.com/*'],
   permissions: ['tabs', 'activeTab', 'sidePanel', 'storage', 'scripting', 'notifications'],
   action: {
     // default_popup: 'templates/popup.html',
-    default_title: packageData.displayName || packageData.name,
+    default_title: `${packageData.displayName || packageData.name} (Alt+A)`,
     default_icon: {
       16: 'img/logo-16.png',
       32: 'img/logo-34.png',
       48: 'img/logo-48.png',
-      128: 'img/logo-128.png',
-    },
+      128: 'img/logo-128.png'
+    }
   },
   commands: {
     _execute_action: {
       suggested_key: {
-        default: 'Alt+A',
-      },
-    },
+        default: 'Alt+A'
+      }
+    }
   },
   content_scripts: [
     {
-      matches: ['*://*.tiktok.com/*'],
+      matches: ['*://*.affiliate.tiktok.com/*'],
       js: ['src/content/index.ts'],
-      run_at: 'document_start',
-    },
+      run_at: 'document_start'
+    }
   ],
   background: {
     service_worker: 'src/background/index.ts',
-    type: 'module',
+    type: 'module'
   },
   // chrome_url_overrides: {
   //   newtab: 'templates/newtab.html',
   // },
   side_panel: {
-    default_path: 'templates/sidepanel.html',
+    default_path: 'templates/sidepanel.html'
   },
   // options_page: 'templates/options.html',
   // devtools_page: 'templates/devtools.html',
@@ -60,9 +60,9 @@ export default defineManifest({
         'img/logo-48.png',
         'img/logo-128.png',
         'inject/**',
-        'templates/**',
+        'templates/**'
       ],
-      matches: ['*://*.tiktok.com/*'],
-    },
-  ],
+      matches: ['*://*.affiliate.tiktok.com/*']
+    }
+  ]
 })

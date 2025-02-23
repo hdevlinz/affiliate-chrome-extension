@@ -114,8 +114,8 @@ h3 {
     }
   }
 
-  &>svg {
-    margin-left: .75rem;
+  & > svg {
+    margin-left: 0.75rem;
   }
 }
 
@@ -175,6 +175,10 @@ h3 {
   align-items: center;
   justify-content: center;
 
+  & > h4 {
+    margin-top: 0;
+  }
+
   .not-found-table {
     margin-bottom: 0.75rem;
     width: 100%;
@@ -185,19 +189,19 @@ h3 {
     border-radius: 0.25rem;
     overflow: hidden;
 
-    &>th,
+    & > th,
     td {
       border: 0.0625rem solid #55516b;
       padding: 0.5rem;
       text-align: center;
     }
 
-    &>th {
+    & > th {
       background-color: #55516b;
       color: #a394ff;
     }
 
-    &>td {
+    & > td {
       background-color: #35314d;
       color: #d0d0d0;
     }

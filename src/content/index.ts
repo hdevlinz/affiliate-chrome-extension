@@ -1,3 +1,4 @@
+import { merge } from 'lodash'
 import { AFFILIATE_TIKTOK_HOST, FIND_CREATOR_PATH, PROFILE_TYPE } from '../types/constants'
 import { ActionType, ConsoleType } from '../types/enums'
 import { isEmptyArray, isNullOrUndefined } from '../utils/checks'
@@ -6,55 +7,61 @@ import { logger } from '../utils/logger'
 
 logger({
   message: 'Content script: Running',
-  level: ConsoleType.INFO,
+  level: ConsoleType.INFO
 })
 
-
 if (window.location.host.includes(AFFILIATE_TIKTOK_HOST) && window.location.pathname === FIND_CREATOR_PATH) {
-  injector.injectExternalJS(chrome.runtime.getURL('inject/interceptor.js'))
-  injector.injectSidePanel()
   const msToken = localStorage.getItem('msToken')
-  chrome.runtime.sendMessage({ action: ActionType.CHECK_LOGGED, hasMsToken: !!msToken })
+  chrome.storage.local.set({ hasMsToken: !!msToken })
+
+  if (msToken) {
+    injector.injectExternalJS(chrome.runtime.getURL('inject/interceptor.js'))
+    injector.injectExternalCSS(chrome.runtime.getURL('inject/styles.css'))
+    injector.injectSidePanel()
+  }
 }
 
 const allFetchPromises: Promise<any>[] = []
 let isCrawling = false
-let currentCreatorIndex = 0
+let startTime = 0
 let creatorIds: string[] = []
-let notFoundCreators: string[] = []
+let currentCreatorIndex = 0
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener(async (message) => {
   logger({
     message: `Content script: Received message:`,
     data: message,
-    level: ConsoleType.INFO,
+    level: ConsoleType.INFO
   })
 
   switch (message.action) {
     case ActionType.START_CRAWLING:
-      if (isCrawling) {
-        return logger({
-          message: 'Content script: Crawling already in progress, ignoring START command.',
-          level: ConsoleType.WARN,
-        })
-      }
-
+      allFetchPromises.length = 0
       isCrawling = true
-      currentCreatorIndex = 0
-      creatorIds = message.creatorIds
-      notFoundCreators = []
+      startTime = message.startTime || Date.now()
+      creatorIds = message.creatorIds || []
       handleCrawlCreators()
       break
 
-    case ActionType.STOP_CRAWLING:
-      if (!isCrawling) {
-        return logger({
-          message: 'Content script: Crawling is not in progress, ignoring STOP command.',
-          level: ConsoleType.WARN,
-        })
-      }
+    case ActionType.CONTINUE_CRAWLING:
+      chrome.storage.local.get(['creatorIds', 'currentCreatorIndex'], (store) => {
+        isCrawling = true
+        creatorIds = store.creatorIds || []
+        currentCreatorIndex = store.currentCreatorIndex || 0
+        handleCrawlCreators()
+      })
+      break
 
+    case ActionType.STOP_CRAWLING:
       isCrawling = false
+      break
+
+    case ActionType.RESET_CRAWLING:
+      allFetchPromises.length = 0
+      isCrawling = false
+      startTime = 0
+      creatorIds = []
+      currentCreatorIndex = 0
       break
 
     case ActionType.TOGGLE_SIDEBAR:
@@ -64,13 +71,13 @@ chrome.runtime.onMessage.addListener((message) => {
 
     default:
       logger({
-        message: `Content script: Unknown action received from background script: ${message.action}`,
-        level: ConsoleType.WARN,
+        message: `Content script: Unknown action received: ${message.action}`,
+        level: ConsoleType.WARN
       })
   }
 })
 
-// Listen for messages from the injected script
+// Listen for messages from the interceptor script
 window.addEventListener(
   'message',
   async (event) => {
@@ -79,49 +86,54 @@ window.addEventListener(
       event.data.type !== 'adu_affiliate' ||
       isCrawling !== true ||
       currentCreatorIndex >= creatorIds.length
-    ) {
+    )
       return
-    }
 
     if (event.data.action !== ActionType.FETCH_DATA) {
       return logger({
-        message: `Content script: Unknown action received from injected script: ${event.data.action}`,
-        level: ConsoleType.WARN,
+        message: `Content script: Unknown action received from interceptor script: ${event.data.action}`,
+        level: ConsoleType.WARN
       })
     }
 
     const eventPayload = event.data.payload
-    const targetCreatorId = creatorIds[currentCreatorIndex]
+    const currentCreatorId = creatorIds[currentCreatorIndex]
 
     logger({
-      message: 'Content script: Received data from injected script:',
+      message: 'Content script: Received data from interceptor script:',
       data: eventPayload,
-      level: ConsoleType.INFO,
+      level: ConsoleType.INFO
     })
 
     const creatorProfiles = eventPayload.responsePayload.creator_profile_list
-    const matchingCreator = creatorProfiles?.find((creator: any) => creator.handle.value === targetCreatorId)
+    const matchingCreator = creatorProfiles?.find((creator: any) => creator.handle.value === currentCreatorId)
 
     if (isEmptyArray(creatorProfiles) || isNullOrUndefined(matchingCreator)) {
-      notFoundCreators.push(targetCreatorId)
-      return logger({
-        message: `Content script: Creator '${targetCreatorId}' not found in search results.`,
-        level: ConsoleType.WARN,
+      return chrome.storage.local.get(['notFoundCreators'], async ({ notFoundCreators }) => {
+        const updateNotFoundCreators = [...(notFoundCreators || []), currentCreatorId]
+        await chrome.storage.local.set({ notFoundCreators: updateNotFoundCreators })
+        logger({
+          message: `Content script: Creator '${currentCreatorId}' not found in search results.`,
+          level: ConsoleType.WARN
+        })
       })
     }
 
+    const headers = {
+      ...eventPayload.requestHeaders,
+      'Content-Type': 'application/json'
+    }
+
     const fetchCreatorProfiles: Promise<any>[] = PROFILE_TYPE.sort(() => Math.random() - 0.5).map(async (type) => {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
       try {
         const response = await fetch(eventPayload.url.replace('/find', '/profile'), {
           method: 'POST',
-          headers: {
-            ...eventPayload.requestHeaders,
-            'Content-Type': 'application/json',
-          },
+          headers: headers,
           body: JSON.stringify({
             creator_oec_id: matchingCreator.creator_oecuid.value,
-            profile_types: [type],
-          }),
+            profile_types: [type]
+          })
         })
 
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -131,86 +143,81 @@ window.addEventListener(
 
         if (code !== 0 || message !== 'success') throw new Error(`API error! code: ${code}, message: ${message}`)
 
-        return { profileType: type, data: profileData }
+        return { data: profileData }
       } catch (error) {
         logger({
-          message: `Content script: Error fetching profile type '${type}' for creator '${targetCreatorId}':`,
+          message: `Content script: Error fetching profile type '${type}' for creator '${currentCreatorId}':`,
           data: error,
-          level: ConsoleType.ERROR,
+          level: ConsoleType.ERROR
         })
       }
     })
 
     allFetchPromises.push(...fetchCreatorProfiles)
 
-    try {
-      const creatorProfileResponses = await Promise.all(fetchCreatorProfiles)
-      const filteredProfileResults = creatorProfileResponses.filter(Boolean)
+    const creatorProfileResponses = await Promise.all(fetchCreatorProfiles)
+    const filteredProfileResults = creatorProfileResponses.filter(Boolean)
 
-      if (isEmptyArray(filteredProfileResults)) {
-        return logger({
-          message: `Content script: No profile data for creator '${targetCreatorId}'.`,
-          level: ConsoleType.WARN,
-        })
-      }
-
-      const creatorProfile = {
-        id: matchingCreator.creator_oecuid.value,
-        uniqueId: matchingCreator.handle.value,
-        nickname: matchingCreator.nickname.value,
-        profiles: filteredProfileResults.map((item) => ({
-          profileType: item.profileType,
-          data: item.data,
-        })),
-      }
-
-      logger({
-        message: `Content script: Successfully fetched and processed profiles for creator: ${targetCreatorId}`,
-        data: creatorProfile,
-        level: ConsoleType.INFO,
-      })
-      await chrome.runtime.sendMessage({ action: ActionType.SAVE_DATA, data: creatorProfile })
-    } catch (error) {
-      logger({
-        message: `Content script: Error during parallel profile fetching for creator '${targetCreatorId}':`,
-        data: error,
-        level: ConsoleType.ERROR,
+    if (isEmptyArray(filteredProfileResults)) {
+      return logger({
+        message: `Content script: No profile data for creator '${currentCreatorId}'.`,
+        level: ConsoleType.WARN
       })
     }
+
+    const creatorProfile = {
+      id: matchingCreator.creator_oecuid.value,
+      uniqueId: matchingCreator.handle.value,
+      nickname: matchingCreator.nickname.value,
+      profiles: merge({}, ...filteredProfileResults.map((item) => item.data))
+    }
+
+    logger({
+      message: `Content script: profiles of creator: ${currentCreatorId}`,
+      data: creatorProfile,
+      level: ConsoleType.INFO
+    })
+    await chrome.runtime.sendMessage({ action: ActionType.SAVE_DATA, data: creatorProfile })
   },
-  false,
+  false
 )
 
 const handleCrawlCreators = async () => {
-  if (!isCrawling || currentCreatorIndex >= creatorIds.length) {
-    await Promise.allSettled(allFetchPromises) // Wait for all fetches to complete
+  if (!isCrawling) return
 
-    const endTime = Date.now()
-    chrome.storage.local.get(['startTime'], async ({ startTime }) => {
-      await chrome.storage.local.set({
-        isStarted: false,
-        notFoundCreators: notFoundCreators,
-        crawlDurationSeconds: Math.round((endTime - (startTime as number)) / 1000),
-      })
-    })
-    await chrome.runtime.sendMessage({
-      action: ActionType.SHOW_NOTIFICATION,
-      notification: {
-        title: isCrawling ? 'Creator Crawler Completed' : 'Creator Crawler Stopped',
-        message: isCrawling
-          ? 'The creator crawling process has been completed for all creators.'
-          : 'The creator crawling process has been stopped.',
+  if (currentCreatorIndex >= creatorIds.length) {
+    await Promise.allSettled(allFetchPromises) // Wait for all promises to complete
+
+    return chrome.storage.local.set(
+      {
+        isCrawling: false,
+        crawlDurationSeconds: Math.round((Date.now() - startTime) / 1000)
       },
-    })
-    return
+      async () => {
+        await chrome.runtime.sendMessage({
+          action: ActionType.SHOW_NOTIFICATION,
+          notification: {
+            title: isCrawling ? 'Creator Crawler Completed' : 'Creator Crawler Stopped',
+            message: isCrawling
+              ? 'The creator crawling process has been completed for all creators.'
+              : 'The creator crawling process has been stopped.'
+          }
+        })
+        allFetchPromises.length = 0
+        isCrawling = false
+        startTime = 0
+        creatorIds = []
+        currentCreatorIndex = 0
+      }
+    )
   }
 
   const searchInput = document.querySelector('input[data-tid="m4b_input_search"]') as HTMLInputElement
   if (!searchInput) {
     isCrawling = false
     logger({
-      message: 'Content script: Critical error: Search input field not found! Crawling cannot continue.',
-      level: ConsoleType.ERROR,
+      message: 'Content script: Search input field not found! Crawling cannot continue.',
+      level: ConsoleType.ERROR
     })
     return
   }
@@ -229,17 +236,18 @@ const handleCrawlCreators = async () => {
       code: 'Enter',
       keyCode: 13,
       which: 13,
-      bubbles: true,
-    }),
+      bubbles: true
+    })
   )
 
   logger({
     message: `Content script: Search creator: ${currentCreatorId} (Index: ${currentCreatorIndex + 1}/${creatorIds.length})`,
-    level: ConsoleType.INFO,
+    level: ConsoleType.INFO
   })
 
-  setTimeout(() => {
+  setTimeout(async () => {
     currentCreatorIndex++
+    await chrome.storage.local.set({ currentCreatorIndex })
     handleCrawlCreators()
   }, 5000)
 }

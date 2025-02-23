@@ -8,6 +8,11 @@ export const kFormatter = (num: number) => {
     : Math.abs(num).toFixed(0).replace(regex, ',')
 }
 
+export const getFormattedDate = () => {
+  const now = new Date()
+  return `${now.getDate()}_${now.getMonth() + 1}_${now.getFullYear()}`
+}
+
 export const formatDate = (
   value: string,
   formatting: Intl.DateTimeFormatOptions = {
@@ -16,8 +21,8 @@ export const formatDate = (
     year: 'numeric',
     hour: 'numeric',
     minute: 'numeric',
-    hour12: false,
-  },
+    hour12: false
+  }
 ) => {
   if (!value) return value
 
@@ -97,7 +102,7 @@ export const formatBytes = (value: number, unit: 'bytes' | 'KB' | 'MB' | 'GB' | 
 }
 
 export const formatSeconds = (seconds?: number | null) => {
-  if (!seconds) return '-'
+  if (!seconds) return null
 
   let interval = seconds / 31536000
 

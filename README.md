@@ -2,6 +2,13 @@
 
 A Chrome extension for crawling affiliate data.
 
+## Download
+
+You can download the latest version of the extension from the [Releases](https://github.com/hdevlinz/tiktok-affiliate-crawler/releases) page.
+
+> [!NOTE]
+> Make sure to download the correct version for your browser and follow the installation instructions provided.
+
 ## Development
 
 To start development, install dependencies and run the development server:
@@ -24,11 +31,17 @@ To build the extension, run:
 npm run build
 ```
 
+> [!NOTE]
+> When the build is complete, the `build` directory will be created in the root of the project.
+
 To create a zip file for distribution:
 
 ```sh
 npm run zip
 ```
+
+> [!NOTE]
+> The resulting zip file will be created in the `package` directory when the command completes.
 
 ### Load the Extension in Chrome
 
