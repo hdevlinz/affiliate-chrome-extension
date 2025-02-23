@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaFileExport, FaFileUpload, FaPlay, FaStop } from 'react-icons/fa'
+import { FaFileExport, FaFileUpload, FaPlay, FaStop, FaSync } from 'react-icons/fa'
 import { ActionType, SwalIconType } from '../types/enums'
 import { isEmptyArray, isNullOrUndefined } from '../utils/checks'
-import { formatSeconds } from '../utils/formatters'
+import { formatSeconds, getFormattedDate } from '../utils/formatters'
 import { ADUSwal } from '../utils/swal'
 import './SidePanel.css'
 
 export const SidePanel = () => {
-  const [hasMsToken, setHasMsToken] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isCrawling, setIsCrawling] = useState(false)
+  const [canContinue, setCanContinue] = useState(false)
   const [crawlProgress, setCrawlProgress] = useState(0)
   const [crawledCount, setCrawledCount] = useState(0)
+  const [crawlDuration, setCrawlDuration] = useState<string | null>(null)
   const [creatorIds, setCreatorIds] = useState<string[]>([])
   const [notFoundCreators, setNotFoundCreators] = useState<string[]>([])
-  const [crawlDuration, setCrawlDuration] = useState<string | null>(null)
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleUploadClick = () => fileInputRef.current?.click()
 
@@ -25,7 +25,7 @@ export const SidePanel = () => {
       return ADUSwal({
         title: 'Upload Error',
         text: 'No file was selected for upload.',
-        icon: SwalIconType.ERROR,
+        icon: SwalIconType.ERROR
       })
     }
 
@@ -36,7 +36,7 @@ export const SidePanel = () => {
         return ADUSwal({
           title: 'File Read Error',
           text: 'Failed to read the content of the uploaded file.',
-          icon: SwalIconType.ERROR,
+          icon: SwalIconType.ERROR
         })
       }
 
@@ -52,14 +52,14 @@ export const SidePanel = () => {
           text: `Successfully loaded ${ids.length} creator IDs from the file.`,
           icon: SwalIconType.SUCCESS,
           timer: 2000,
-          showConfirmButton: false,
+          showConfirmButton: false
         })
     }
     reader.onerror = () => {
       return ADUSwal({
         title: 'File Read Error',
         text: 'An error occurred while trying to read the file.',
-        icon: SwalIconType.ERROR,
+        icon: SwalIconType.ERROR
       })
     }
     reader.readAsText(file)
@@ -71,7 +71,7 @@ export const SidePanel = () => {
       return ADUSwal({
         title: 'Input Error',
         text: 'Please enter or upload creator IDs before starting.',
-        icon: SwalIconType.ERROR,
+        icon: SwalIconType.ERROR
       })
     }
 
@@ -86,80 +86,113 @@ export const SidePanel = () => {
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
         confirmButtonText: 'Yes, clear and start!',
-        cancelButtonText: 'No, cancel',
+        cancelButtonText: 'No, cancel'
       }).then((result) => result.isConfirmed && startCrawl(validIds))
     })
   }
 
   const startCrawl = (validIds: string[]) => {
     setIsCrawling(true)
+    setCanContinue(false)
     setCrawlProgress(0)
     setCrawledCount(0)
-    setNotFoundCreators([])
     setCrawlDuration(null)
+    setNotFoundCreators([])
 
     chrome.storage.local.remove(
-      ['processCount', 'crawledCreators', 'creatorIds', 'notFoundCreators', 'crawlDurationSeconds'],
+      ['processCount', 'crawlDurationSeconds', 'crawledCreators', 'notFoundCreators', 'currentCreatorIndex'],
       () => {
-        if (chrome.runtime.lastError) {
-          return ADUSwal({
-            title: 'Storage Error',
-            text: 'Failed to clear local storage. Crawling may not start correctly.',
-            icon: SwalIconType.ERROR,
-          }).then(() => setIsCrawling(false))
-        }
+        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+          if (isNullOrUndefined(tabs[0].id)) return setIsCrawling(false)
 
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          const tabId = tabs[0]?.id
-          if (typeof tabId !== 'number') {
-            return ADUSwal({
-              title: 'Tab Error',
-              text: 'Active TikTok tab not found. Please navigate to TikTok Affiliate page.',
-              icon: SwalIconType.ERROR,
-            }).then(() => setIsCrawling(false))
-          }
-
-          chrome.storage.local.set({ isStarted: true, creatorIds: validIds, startTime: Date.now() }, async () => {
-            if (chrome.runtime.lastError) {
-              return ADUSwal({
-                title: 'Storage Error',
-                text: 'Failed to set initial crawling data in storage.',
-                icon: SwalIconType.ERROR,
-              }).then(() => setIsCrawling(false))
-            }
-
-            await chrome.tabs.sendMessage(tabId, { action: ActionType.START_CRAWLING, creatorIds: validIds })
+          await chrome.storage.local.set({ isCrawling: true, creatorIds: validIds })
+          await chrome.tabs.sendMessage(tabs[0].id, {
+            action: ActionType.START_CRAWLING,
+            startTime: Date.now(),
+            creatorIds: validIds
           })
         })
-      },
+      }
     )
+  }
+
+  const handleContinueCrawl = () => {
+    setIsCrawling(true)
+    setCanContinue(false)
+
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      if (isNullOrUndefined(tabs[0].id)) {
+        setIsCrawling(false)
+        setCanContinue(true)
+        return
+      }
+
+      await chrome.storage.local.set({ isCrawling: true })
+      await chrome.tabs.sendMessage(tabs[0].id, { action: ActionType.CONTINUE_CRAWLING })
+    })
   }
 
   const handleStopCrawl = () => {
     setIsCrawling(false)
+    setCanContinue(true)
 
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs[0]?.id
-      if (typeof tabId !== 'number') {
-        return ADUSwal({
-          title: 'Tab Error',
-          text: 'Active TikTok tab not found. Please navigate to TikTok Affiliate page.',
-          icon: SwalIconType.ERROR,
-        }).then(() => setIsCrawling(false))
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      if (isNullOrUndefined(tabs[0].id)) {
+        setIsCrawling(true)
+        setCanContinue(false)
+        return
       }
 
-      chrome.storage.local.set({ isStarted: false }, async () => {
-        if (chrome.runtime.lastError) {
-          return ADUSwal({
-            title: 'Storage Error',
-            text: 'Failed to set initial crawling data in storage.',
-            icon: SwalIconType.ERROR,
-          }).then(() => setIsCrawling(false))
-        }
-
-        await chrome.tabs.sendMessage(tabId, { action: ActionType.STOP_CRAWLING })
-      })
+      await chrome.storage.local.set({ isCrawling: false })
+      await chrome.tabs.sendMessage(tabs[0].id, { action: ActionType.STOP_CRAWLING })
     })
+  }
+
+  const handleResetCrawl = async () => {
+    ADUSwal({
+      title: 'Are you sure?',
+      text: 'Resetting the crawl will clear all crawled data and stop the current process. Are you sure you want to proceed?',
+      icon: SwalIconType.WARNING,
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, clear and start!',
+      cancelButtonText: 'No, cancel'
+    }).then((result) => result.isConfirmed && resetCrawl())
+  }
+
+  const resetCrawl = () => {
+    setIsCrawling(false)
+    setCanContinue(false)
+    setCrawlProgress(0)
+    setCrawledCount(0)
+    setCrawlDuration(null)
+    setCreatorIds([])
+    setNotFoundCreators([])
+
+    chrome.storage.local.remove(
+      [
+        'isCrawling',
+        'processCount',
+        'crawlDurationSeconds',
+        'creatorIds',
+        'crawledCreators',
+        'notFoundCreators',
+        'currentCreatorIndex'
+      ],
+      () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+          if (isNullOrUndefined(tabs[0].id)) return
+
+          await chrome.tabs.sendMessage(tabs[0].id, { action: ActionType.RESET_CRAWLING })
+          ADUSwal({
+            title: 'Crawl Reset',
+            text: 'The crawling process has been reset successfully.',
+            icon: SwalIconType.SUCCESS
+          })
+        })
+      }
+    )
   }
 
   const handleExportCrawledCreators = () => {
@@ -168,25 +201,13 @@ export const SidePanel = () => {
         return ADUSwal({
           title: 'Export Error',
           text: 'No creator data crawled yet. Please start crawling to export data.',
-          icon: SwalIconType.ERROR,
+          icon: SwalIconType.ERROR
         })
       }
 
       const data = JSON.stringify(crawledCreators, null, 2)
-      const now = new Date()
-      const date = `${now.getDate()}_${now.getMonth() + 1}_${now.getFullYear()}`
-      const filename = `tiktok_creator_data_${date}.json`
-
-      const blob = new Blob([data], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const aTag = document.createElement('a')
-      aTag.href = url
-      aTag.download = filename
-
-      document.body.appendChild(aTag)
-      aTag.click()
-      document.body.removeChild(aTag)
-      URL.revokeObjectURL(url)
+      const filename = `tiktok_crawled_creators_${getFormattedDate()}.json`
+      exportFile(data, filename, 'application/json')
     })
   }
 
@@ -195,21 +216,21 @@ export const SidePanel = () => {
       return ADUSwal({
         title: 'Export Error',
         text: 'No not found creator IDs to export.',
-        icon: SwalIconType.ERROR,
+        icon: SwalIconType.ERROR
       })
     }
 
     const data = notFoundCreators.join('\n')
-    const now = new Date()
-    const date = `${now.getDate()}_${now.getMonth() + 1}_${now.getFullYear()}`
-    const filename = `tiktok_not_found_creators_${date}.txt`
+    const filename = `tiktok_not_found_creators_${getFormattedDate()}.txt`
+    exportFile(data, filename, 'text/plain')
+  }
 
-    const blob = new Blob([data], { type: 'text/plain' })
+  const exportFile = (data: BlobPart, filename: string, type: any) => {
+    const blob = new Blob([data], { type })
     const url = URL.createObjectURL(blob)
     const aTag = document.createElement('a')
     aTag.href = url
     aTag.download = filename
-
     document.body.appendChild(aTag)
     aTag.click()
     document.body.removeChild(aTag)
@@ -217,63 +238,100 @@ export const SidePanel = () => {
   }
 
   useEffect(() => {
-    const updateStateFromStorage = () => {
-      chrome.storage.local.get(
-        ['hasMsToken', 'isStarted', 'processCount', 'crawledCreators', 'creatorIds', 'notFoundCreators', 'startTime'],
-        ({
-          hasMsToken: storedHasMsToken,
-          isStarted,
-          processCount,
-          crawledCreators,
-          creatorIds,
-          notFoundCreators: storedNotFoundCreators,
-          startTime,
-        }) => {
-          const crawledCreatorsCount = isEmptyArray(crawledCreators) ? 0 : crawledCreators.length
-          const totalCreatorIdsCount = isEmptyArray(creatorIds) ? 0 : creatorIds.length
-          const calculatedProgress =
-            totalCreatorIdsCount > 0 && !isNullOrUndefined(processCount)
-              ? Math.round((processCount / totalCreatorIdsCount) * 100)
-              : 0
+    chrome.storage.local.get(
+      [
+        'hasMsToken',
+        'isCrawling',
+        'processCount',
+        'crawlDurationSeconds',
+        'creatorIds',
+        'crawledCreators',
+        'notFoundCreators',
+        'currentCreatorIndex'
+      ],
+      (store) => {
+        const totalCreatorIdsCount = isEmptyArray(store.creatorIds) ? 0 : store.creatorIds.length
+        const storedCanContinue =
+          !!!store.isCrawling &&
+          !isNullOrUndefined(store.currentCreatorIndex) &&
+          store.currentCreatorIndex < totalCreatorIdsCount
+        const crawledCreatorsCount = isEmptyArray(store.crawledCreators) ? 0 : store.crawledCreators.length
+        const calculatedProgress =
+          totalCreatorIdsCount > 0 && !isNullOrUndefined(store.processCount)
+            ? Math.round((store.processCount / totalCreatorIdsCount) * 100)
+            : 0
 
-          setHasMsToken(!!storedHasMsToken)
-          setIsCrawling(!!isStarted)
-          setCrawlProgress(calculatedProgress)
-          setCrawledCount(crawledCreatorsCount)
-          setCreatorIds(creatorIds || [])
-          setNotFoundCreators(storedNotFoundCreators || [])
+        setIsLoggedIn(!!store.hasMsToken)
+        setIsCrawling(!!store.isCrawling)
+        setCanContinue(storedCanContinue)
+        setCrawlProgress(calculatedProgress)
+        setCrawledCount(crawledCreatorsCount)
+        setCrawlDuration(formatSeconds(store.crawlDurationSeconds))
+        setCreatorIds(store.creatorIds || [])
+        setNotFoundCreators(store.notFoundCreators || [])
+      }
+    )
 
-          if (!isStarted && startTime) {
-            const endTime = Date.now()
-            const durationSeconds = Math.round((endTime - startTime) / 1000)
-            setCrawlDuration(formatSeconds(durationSeconds))
-          } else {
-            setCrawlDuration(null)
+    const updateStateFromStorage = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      areaName: chrome.storage.AreaName
+    ) => {
+      if (areaName === 'local') {
+        chrome.storage.local.get(
+          [
+            'hasMsToken',
+            'isCrawling',
+            'processCount',
+            'crawlDurationSeconds',
+            'creatorIds',
+            'crawledCreators',
+            'notFoundCreators',
+            'currentCreatorIndex'
+          ],
+          (store) => {
+            const totalCreatorIdsCount = isEmptyArray(store.creatorIds) ? 0 : store.creatorIds.length
+
+            if (changes.hasMsToken) setIsLoggedIn(!!store.hasMsToken)
+
+            if (changes.isCrawling) setIsCrawling(!!store.isCrawling)
+
+            if (changes.currentCreatorIndex) {
+              const storedCanContinue =
+                !!!store.isCrawling &&
+                !isNullOrUndefined(store.currentCreatorIndex) &&
+                store.currentCreatorIndex < totalCreatorIdsCount
+              setCanContinue(storedCanContinue)
+            }
+
+            if (changes.processCount) {
+              const calculatedProgress =
+                totalCreatorIdsCount > 0 && !isNullOrUndefined(store.processCount)
+                  ? Math.round((store.processCount / totalCreatorIdsCount) * 100)
+                  : 0
+              setCrawlProgress(calculatedProgress)
+            }
+
+            if (changes.crawledCreators) {
+              setCrawledCount(isEmptyArray(store.crawledCreators) ? 0 : store.crawledCreators.length)
+            }
+
+            if (changes.crawlDurationSeconds) setCrawlDuration(formatSeconds(store.crawlDurationSeconds))
+
+            if (changes.creatorIds) setCreatorIds(store.creatorIds || [])
+
+            if (changes.notFoundCreators) setNotFoundCreators(store.notFoundCreators || [])
           }
-        },
-      )
+        )
+      }
     }
 
-    updateStateFromStorage()
-
-    const storageChangeListener = () => updateStateFromStorage()
-    chrome.storage.onChanged.addListener(storageChangeListener)
-
-    const handleLoginRequiredMessage = (message: any) => {
-      if (message.action !== ActionType.LOGIN_REQUIRED) return
-      setHasMsToken(!!message.hasMsToken)
-    }
-    chrome.runtime.onMessage.addListener(handleLoginRequiredMessage)
-
-    return () => {
-      chrome.storage.onChanged.removeListener(storageChangeListener)
-      chrome.runtime.onMessage.removeListener(handleLoginRequiredMessage)
-    }
-  }, [isCrawling])
+    chrome.storage.onChanged.addListener(updateStateFromStorage)
+    return () => chrome.storage.onChanged.removeListener(updateStateFromStorage)
+  }, [])
 
   return (
     <main className="side-panel-container">
-      {hasMsToken ? (
+      {isLoggedIn ? (
         <>
           <h3>TikTok Creator Data Crawler</h3>
           <div className="input-area">
@@ -307,13 +365,22 @@ export const SidePanel = () => {
               onChange={handleFileChange}
             />
           </div>
+
           <div className="button-area">
             <button
-              className={`button start-button ${isCrawling ? 'disabled' : ''}`}
-              disabled={isCrawling}
+              className={`button start-button ${isCrawling || canContinue ? 'disabled' : ''}`}
+              disabled={isCrawling || canContinue}
               onClick={handleStartCrawl}
             >
               Start Crawling <FaPlay />
+            </button>
+
+            <button
+              className={`button continue-button ${!canContinue ? 'disabled' : ''}`}
+              disabled={!canContinue}
+              onClick={handleContinueCrawl}
+            >
+              Continue Crawling <FaPlay />
             </button>
 
             <button
@@ -325,6 +392,14 @@ export const SidePanel = () => {
             </button>
 
             <button
+              className={`button reset-button ${isCrawling ? 'disabled' : ''}`}
+              disabled={isCrawling}
+              onClick={handleResetCrawl}
+            >
+              Reset Crawling <FaSync />
+            </button>
+
+            <button
               className={`button export-button ${isCrawling || !crawledCount ? 'disabled' : ''}`}
               disabled={isCrawling || !crawledCount}
               onClick={handleExportCrawledCreators}
@@ -332,6 +407,7 @@ export const SidePanel = () => {
               Export Crawled Creators <FaFileExport />
             </button>
           </div>
+
           <div className="progress-area">
             <label htmlFor="crawlerProgress" className="progress-label">
               Crawling Progress:
@@ -341,6 +417,7 @@ export const SidePanel = () => {
 
             <span className="progress-percentage">{crawlProgress}%</span>
           </div>
+
           <span className="crawled-creators-count">
             Crawled Creators: {crawledCount} / {creatorIds.filter(Boolean).length}
           </span>

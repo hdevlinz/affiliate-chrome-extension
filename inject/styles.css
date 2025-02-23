@@ -1,0 +1,42 @@
+#adu-sidepanel-container {
+  position: fixed;
+  top: 0.625rem;
+  right: 0.625rem;
+  width: 31.25rem;
+  height: 98vh;
+  border: 0.0625rem solid #ccc;
+  box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background-color: white;
+  cursor: default;
+  display: flex;
+  flex-direction: row-reverse;
+  user-select: none;
+}
+
+#adu-sidepanel-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+#adu-sidepanel-close-icon {
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #777;
+  z-index: 10;
+}
+
+#adu-sidepanel-spliter {
+  width: 5px;
+  height: 100%;
+  background: #c96d6d;
+  cursor: col-resize;
+  position: relative;
+  z-index: 5;
+}

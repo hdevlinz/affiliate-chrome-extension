@@ -13,9 +13,9 @@ export default defineConfig(({ mode }) => {
       outDir: 'build',
       rollupOptions: {
         output: {
-          chunkFileNames: 'assets/chunk-[hash].js',
-        },
-      },
+          chunkFileNames: 'assets/chunk-[hash].js'
+        }
+      }
     },
 
     server: {
@@ -23,14 +23,14 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       cors: true,
       hmr: {
-        port: 5173,
-      },
+        port: 5173
+      }
     },
 
     legacy: {
-      skipWebSocketTokenCheck: true,
+      skipWebSocketTokenCheck: true
     },
 
-    plugins: [crx({ manifest }), react()],
+    plugins: [crx({ manifest }), react()]
   }
 })

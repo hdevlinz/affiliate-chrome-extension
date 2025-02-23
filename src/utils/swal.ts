@@ -8,8 +8,8 @@ export const ADUSwal = (params: { title: string; text: string; icon: SwalIconTyp
     color: '#a394ff',
     background: '#28243d',
     customClass: {
-      popup: 'custom-popup-swal',
-    },
+      popup: 'custom-popup-swal'
+    }
   })
 }
 
@@ -18,7 +18,7 @@ export const ADUToast = (params: { title: string; text: string; icon: SwalIconTy
     ...params,
     theme: 'auto',
     color: '#a394ff',
-    background: '#28243d',
+    background: '#28243d'
   })
 }
 
@@ -31,5 +31,5 @@ const Toast = Swal.mixin({
   didOpen: (toast) => {
     toast.onmouseenter = Swal.stopTimer
     toast.onmouseleave = Swal.resumeTimer
-  },
+  }
 })

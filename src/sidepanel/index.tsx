@@ -6,5 +6,5 @@ import './index.css'
 ReactDOM.createRoot(document.getElementById('app') as HTMLElement).render(
   <React.StrictMode>
     <SidePanel />
-  </React.StrictMode>,
+  </React.StrictMode>
 )
