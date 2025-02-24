@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.1.1...v1.2.0) (2025-02-24)
+
+### ✨ Features
+
+* Add API fetching for creator IDs, flatten response data ([25656de](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/25656dee0332620a2735154ed1931cf6581eadfd))
+
 ## [1.1.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.1.0...v1.1.1) (2025-02-24)
 
 ### 🐛 Bug Fixes
