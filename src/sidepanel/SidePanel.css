@@ -49,7 +49,7 @@ h3 {
     justify-content: space-between;
   }
 
-  .upload-icon-button {
+  .icon-button {
     background-color: transparent;
     color: #a394ff;
     border: none;
@@ -66,11 +66,17 @@ h3 {
     border-radius: 0.25rem;
     padding: 0.5rem;
     font-size: 0.9rem;
-    resize: vertical;
+    resize: none;
     min-height: 6.25rem;
     background-color: #35314d;
     color: #d0d0d0;
     flex: 1;
+    overflow: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 }
 
@@ -114,7 +120,7 @@ h3 {
     }
   }
 
-  & > svg {
+  &>svg {
     margin-left: 0.75rem;
   }
 }
@@ -175,7 +181,7 @@ h3 {
   align-items: center;
   justify-content: center;
 
-  & > h4 {
+  &>h4 {
     margin-top: 0;
   }
 
@@ -189,19 +195,19 @@ h3 {
     border-radius: 0.25rem;
     overflow: hidden;
 
-    & > th,
+    &>th,
     td {
       border: 0.0625rem solid #55516b;
       padding: 0.5rem;
       text-align: center;
     }
 
-    & > th {
+    &>th {
       background-color: #55516b;
       color: #a394ff;
     }
 
-    & > td {
+    &>td {
       background-color: #35314d;
       color: #d0d0d0;
     }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaFileExport, FaFileUpload, FaPlay, FaStop, FaSync } from 'react-icons/fa'
+import { FaCloudDownloadAlt, FaFileExport, FaFileUpload, FaPlay, FaStop, FaSync } from 'react-icons/fa'
 import { ActionType, SwalIconType } from '../types/enums'
 import { isEmptyArray, isNullOrUndefined } from '../utils/checks'
 import { formatSeconds, getFormattedDate } from '../utils/formatters'
@@ -16,6 +16,54 @@ export const SidePanel = () => {
   const [crawlDuration, setCrawlDuration] = useState<string | null>(null)
   const [creatorIds, setCreatorIds] = useState<string[]>([])
   const [notFoundCreators, setNotFoundCreators] = useState<string[]>([])
+
+  const handleFetchFromAPI = async () => {
+    ADUSwal({
+      title: 'Fetching Creator IDs',
+      text: 'Please wait while we fetch creator IDs from the API...',
+      icon: SwalIconType.INFO,
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      allowEscapeKey: false
+    })
+
+    try {
+      const response = await fetch('https://67bbf28ded4861e07b38a491.mockapi.io/api/v1/creator-ids/creators')
+      if (!response.ok) {
+        return ADUSwal({
+          title: 'API Error',
+          text: 'Failed to fetch creator IDs from the API.',
+          icon: SwalIconType.ERROR
+        })
+      }
+
+      const creatorJsonResponse = await response.json()
+      if (isEmptyArray(creatorJsonResponse)) {
+        return ADUSwal({
+          title: 'API Error',
+          text: 'No creator IDs were fetched from the API.',
+          icon: SwalIconType.ERROR
+        })
+      }
+
+      const creatorIds = creatorJsonResponse.map((creator: any) => creator.id)
+      setCreatorIds(creatorIds)
+      ADUSwal({
+        title: 'API Fetched',
+        text: `Successfully fetched ${creatorIds.length} creator IDs from the API.`,
+        icon: SwalIconType.SUCCESS,
+        timer: 2000,
+        showConfirmButton: false
+      })
+    } catch (error) {
+      console.error('Error fetching creator IDs:', error)
+      ADUSwal({
+        title: 'API Error',
+        text: 'An error occurred while trying to fetch creator IDs from the API.',
+        icon: SwalIconType.ERROR
+      })
+    }
+  }
 
   const handleUploadClick = () => fileInputRef.current?.click()
 
@@ -337,15 +385,26 @@ export const SidePanel = () => {
           <div className="input-area">
             <label htmlFor="creatorIds" className="input-label">
               Creator IDs:
-              <button
-                className={`upload-icon-button ${isCrawling ? 'disabled' : ''}`}
-                disabled={isCrawling}
-                title="Upload a text file (.txt) with creator IDs (one ID per line)"
-                type="button"
-                onClick={handleUploadClick}
-              >
-                <FaFileUpload className={`${isCrawling ? 'disabled' : ''}`} />
-              </button>
+              <div>
+                <button
+                  className={`icon-button ${isCrawling ? 'disabled' : ''}`}
+                  disabled={isCrawling}
+                  title="Fetch creator IDs from API"
+                  type="button"
+                  onClick={handleFetchFromAPI}
+                >
+                  <FaCloudDownloadAlt className={`${isCrawling ? 'disabled' : ''}`} />
+                </button>
+                <button
+                  className={`icon-button ${isCrawling ? 'disabled' : ''}`}
+                  disabled={isCrawling}
+                  title="Upload a text file (.txt) with creator IDs (one ID per line)"
+                  type="button"
+                  onClick={handleUploadClick}
+                >
+                  <FaFileUpload className={`${isCrawling ? 'disabled' : ''}`} />
+                </button>
+              </div>
             </label>
             <textarea
               className={`creator-ids-textarea ${isCrawling ? 'disabled' : ''}`}

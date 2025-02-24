@@ -50,7 +50,7 @@ export default defineManifest({
   side_panel: {
     default_path: 'templates/sidepanel.html'
   },
-  // options_page: 'templates/options.html',
+  options_page: 'templates/options.html',
   // devtools_page: 'templates/devtools.html',
   web_accessible_resources: [
     {

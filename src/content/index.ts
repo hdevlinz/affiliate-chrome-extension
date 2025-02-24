@@ -1,7 +1,8 @@
 import { merge } from 'lodash'
-import { AFFILIATE_TIKTOK_HOST, FIND_CREATOR_PATH, PROFILE_TYPE } from '../types/constants'
+import { AFFILIATE_TIKTOK_HOST, FIND_CREATOR_PATH, KEYS_TO_OMIT, PROFILE_TYPE } from '../types/constants'
 import { ActionType, ConsoleType } from '../types/enums'
 import { isEmptyArray, isNullOrUndefined } from '../utils/checks'
+import { deepOmit, flattenObject } from '../utils/helpers'
 import { injector } from '../utils/injector'
 import { logger } from '../utils/logger'
 
@@ -25,6 +26,7 @@ const allFetchPromises: Promise<any>[] = []
 let isCrawling = false
 let startTime = 0
 let creatorIds: string[] = []
+let notFoundCreators: string[] = []
 let currentCreatorIndex = 0
 
 chrome.runtime.onMessage.addListener(async (message) => {
@@ -40,13 +42,16 @@ chrome.runtime.onMessage.addListener(async (message) => {
       isCrawling = true
       startTime = message.startTime || Date.now()
       creatorIds = message.creatorIds || []
+      notFoundCreators = []
+      currentCreatorIndex = 0
       handleCrawlCreators()
       break
 
     case ActionType.CONTINUE_CRAWLING:
-      chrome.storage.local.get(['creatorIds', 'currentCreatorIndex'], (store) => {
+      chrome.storage.local.get(['creatorIds', 'notFoundCreators', 'currentCreatorIndex'], (store) => {
         isCrawling = true
         creatorIds = store.creatorIds || []
+        notFoundCreators = store.notFoundCreators || []
         currentCreatorIndex = store.currentCreatorIndex || 0
         handleCrawlCreators()
       })
@@ -61,6 +66,7 @@ chrome.runtime.onMessage.addListener(async (message) => {
       isCrawling = false
       startTime = 0
       creatorIds = []
+      notFoundCreators = []
       currentCreatorIndex = 0
       break
 
@@ -81,12 +87,7 @@ chrome.runtime.onMessage.addListener(async (message) => {
 window.addEventListener(
   'message',
   async (event) => {
-    if (
-      event.source !== window ||
-      event.data.type !== 'adu_affiliate' ||
-      isCrawling !== true ||
-      currentCreatorIndex >= creatorIds.length
-    )
+    if (event.source !== window || event.data.type !== 'adu_affiliate' || currentCreatorIndex >= creatorIds.length)
       return
 
     if (event.data.action !== ActionType.FETCH_DATA) {
@@ -109,13 +110,10 @@ window.addEventListener(
     const matchingCreator = creatorProfiles?.find((creator: any) => creator.handle.value === currentCreatorId)
 
     if (isEmptyArray(creatorProfiles) || isNullOrUndefined(matchingCreator)) {
-      return chrome.storage.local.get(['notFoundCreators'], async ({ notFoundCreators }) => {
-        const updateNotFoundCreators = [...(notFoundCreators || []), currentCreatorId]
-        await chrome.storage.local.set({ notFoundCreators: updateNotFoundCreators })
-        logger({
-          message: `Content script: Creator '${currentCreatorId}' not found in search results.`,
-          level: ConsoleType.WARN
-        })
+      notFoundCreators.push(currentCreatorId)
+      return logger({
+        message: `Content script: Creator '${currentCreatorId}' not found in search results.`,
+        level: ConsoleType.WARN
       })
     }
 
@@ -126,6 +124,7 @@ window.addEventListener(
 
     const fetchCreatorProfiles: Promise<any>[] = PROFILE_TYPE.sort(() => Math.random() - 0.5).map(async (type) => {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+
       try {
         const response = await fetch(eventPayload.url.replace('/find', '/profile'), {
           method: 'POST',
@@ -143,8 +142,10 @@ window.addEventListener(
 
         if (code !== 0 || message !== 'success') throw new Error(`API error! code: ${code}, message: ${message}`)
 
-        return { data: profileData }
+        const normalizedProfileData = flattenObject(deepOmit(profileData, KEYS_TO_OMIT))
+        return { data: normalizedProfileData }
       } catch (error) {
+        notFoundCreators.push(currentCreatorId)
         logger({
           message: `Content script: Error fetching profile type '${type}' for creator '${currentCreatorId}':`,
           data: error,
@@ -160,7 +161,7 @@ window.addEventListener(
 
     if (isEmptyArray(filteredProfileResults)) {
       return logger({
-        message: `Content script: No profile data for creator '${currentCreatorId}'.`,
+        message: `Content script: Creator '${currentCreatorId}' has no profiles.`,
         level: ConsoleType.WARN
       })
     }
@@ -194,16 +195,15 @@ const handleCrawlCreators = async () => {
     return chrome.storage.local.set(
       {
         isCrawling: false,
-        crawlDurationSeconds: Math.round((Date.now() - startTime) / 1000)
+        crawlDurationSeconds: Math.round((Date.now() - startTime) / 1000),
+        notFoundCreators
       },
       async () => {
         await chrome.runtime.sendMessage({
           action: ActionType.SHOW_NOTIFICATION,
           notification: {
-            title: isCrawling ? 'Creator Crawler Completed' : 'Creator Crawler Stopped',
-            message: isCrawling
-              ? 'The creator crawling process has been completed for all creators.'
-              : 'The creator crawling process has been stopped.'
+            title: 'Creator Crawler Completed',
+            message: 'The creator crawling process has been completed for all creators.'
           }
         })
         allFetchPromises.length = 0
@@ -218,11 +218,10 @@ const handleCrawlCreators = async () => {
   const searchInput = document.querySelector('input[data-tid="m4b_input_search"]') as HTMLInputElement
   if (!searchInput) {
     isCrawling = false
-    logger({
+    return logger({
       message: 'Content script: Search input field not found! Crawling cannot continue.',
       level: ConsoleType.ERROR
     })
-    return
   }
 
   chrome.storage.local.get(['processCount'], async ({ processCount }) => {

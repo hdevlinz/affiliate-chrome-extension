@@ -48,4 +48,4 @@ npm run zip
 1. Open Chrome and navigate to `chrome://extensions/`
 2. Enable "Developer mode" by toggling the switch in the top right corner
 3. Click on "Load unpacked" and select the `build` directory or zip file in `package` directory
-4. Pin the extension to the toolbar for easy access
+4. Pin the extension to the toolbar for easy access (or press Alt + A)
