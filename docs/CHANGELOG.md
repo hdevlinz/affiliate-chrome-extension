@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.1.0...v1.1.1) (2025-02-24)
+
+### 🐛 Bug Fixes
+
+* Ensure all promises complete ([d889317](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/d8893176ba4f35c2432c9c400991b779929680b9))
+
 ## [1.1.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.0.0...v1.1.0) (2025-02-23)
 
 ### ✨ Features
