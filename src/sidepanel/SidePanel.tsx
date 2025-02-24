@@ -76,7 +76,7 @@ export const SidePanel = () => {
     }
 
     chrome.storage.local.get(['crawledCreators'], ({ crawledCreators }) => {
-      if (isEmptyArray(crawledCreators)) return startCrawl(validIds)
+      if (isNullOrUndefined(crawledCreators) || isEmptyArray(crawledCreators)) return startCrawl(validIds)
 
       ADUSwal({
         title: 'Are you sure?',
@@ -368,7 +368,7 @@ export const SidePanel = () => {
 
           <div className="button-area">
             <button
-              className={`button start-button ${isCrawling || canContinue ? 'disabled' : ''}`}
+              className={`button ${isCrawling || canContinue ? 'disabled' : ''}`}
               disabled={isCrawling || canContinue}
               onClick={handleStartCrawl}
             >
@@ -376,7 +376,7 @@ export const SidePanel = () => {
             </button>
 
             <button
-              className={`button continue-button ${!canContinue ? 'disabled' : ''}`}
+              className={`button ${!canContinue ? 'disabled' : ''}`}
               disabled={!canContinue}
               onClick={handleContinueCrawl}
             >
@@ -384,7 +384,7 @@ export const SidePanel = () => {
             </button>
 
             <button
-              className={`button stop-button ${!isCrawling ? 'disabled' : ''}`}
+              className={`button ${!isCrawling ? 'disabled' : ''}`}
               disabled={!isCrawling}
               onClick={handleStopCrawl}
             >
@@ -392,7 +392,7 @@ export const SidePanel = () => {
             </button>
 
             <button
-              className={`button reset-button ${isCrawling ? 'disabled' : ''}`}
+              className={`button ${isCrawling ? 'disabled' : ''}`}
               disabled={isCrawling}
               onClick={handleResetCrawl}
             >
@@ -400,7 +400,7 @@ export const SidePanel = () => {
             </button>
 
             <button
-              className={`button export-button ${isCrawling || !crawledCount ? 'disabled' : ''}`}
+              className={`button ${isCrawling || !crawledCount ? 'disabled' : ''}`}
               disabled={isCrawling || !crawledCount}
               onClick={handleExportCrawledCreators}
             >
@@ -444,8 +444,8 @@ export const SidePanel = () => {
                   </tbody>
                 </table>
                 <button
-                  className="button export-not-found-button"
-                  disabled={isEmptyArray(notFoundCreators)}
+                  className={`button ${isCrawling || isEmptyArray(notFoundCreators) ? 'disabled' : ''}`}
+                  disabled={isCrawling || isEmptyArray(notFoundCreators)}
                   onClick={handleExportNotFoundCreators}
                 >
                   Export Not Found Creators <FaFileExport />

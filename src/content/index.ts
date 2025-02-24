@@ -183,7 +183,10 @@ window.addEventListener(
 )
 
 const handleCrawlCreators = async () => {
-  if (!isCrawling) return
+  if (!isCrawling) {
+    await Promise.allSettled(allFetchPromises)
+    return
+  }
 
   if (currentCreatorIndex >= creatorIds.length) {
     await Promise.allSettled(allFetchPromises) // Wait for all promises to complete
