@@ -1,12 +1,9 @@
 import { AFFILIATE_TIKTOK_HOST, FIND_CREATOR_PATH, FIND_CREATOR_URL } from '../types/constants'
-import { ActionType, ConsoleType } from '../types/enums'
+import { ActionType } from '../types/enums'
 import { isNullOrUndefined } from '../utils/checks'
 import { logger } from '../utils/logger'
 
-logger({
-  message: 'Background script: Running',
-  level: ConsoleType.INFO
-})
+logger.info('Background script: Running')
 
 const INITIAL_STORAGE_STATE = {
   hasMsToken: false,
@@ -20,11 +17,7 @@ const INITIAL_STORAGE_STATE = {
 }
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  logger({
-    message: `Background script: Received message:`,
-    data: message,
-    level: ConsoleType.INFO
-  })
+  logger.info(`Background script: Received message:`, message)
 
   switch (message.action) {
     case ActionType.SAVE_DATA:
@@ -45,10 +38,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       break
 
     default:
-      logger({
-        message: `Background script: Unknown action received: ${message.action}`,
-        level: ConsoleType.WARN
-      })
+      logger.warn(`Background script: Unknown action received: ${message.action}`)
   }
 })
 
@@ -65,7 +55,7 @@ chrome.action.onClicked.addListener(async ({ id, url }) => {
     return await chrome.tabs.create({ url: FIND_CREATOR_URL })
   }
 
-  await chrome.tabs.sendMessage(id, { action: ActionType.TOGGLE_SIDEBAR })
+  await chrome.tabs.sendMessage(id, { action: ActionType.TOGGLE_SIDE_PANEL })
 })
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {

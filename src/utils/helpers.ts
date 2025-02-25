@@ -1,17 +1,12 @@
 import { transform } from 'lodash'
 import { isObject } from './checks'
 
-// Deeply remove keys from an object
-// @param - obj: Object - the object to remove the key from
-// @params - keysToOmit: Array/String - string or array of strings of keys to remove
-export const deepOmit = (obj: any, keysToOmit: any) => {
-  const keysToOmitIndex = Array.isArray(keysToOmit) ? keysToOmit : [keysToOmit]
+export const deepOmit = (obj: any, keysToOmit: string | string[]) => {
+  const keysToOmitArray = Array.isArray(keysToOmit) ? keysToOmit : [keysToOmit]
 
   const omitFromObject = (o: any) => {
     return transform(o, (result: any, value: any, key: any) => {
-      if (keysToOmitIndex.indexOf(key) !== -1) {
-        return
-      }
+      if (keysToOmitArray.indexOf(key) !== -1) return
 
       if (Array.isArray(value)) {
         result[key] = value.map((item) => (isObject(item) ? omitFromObject(item) : item))
@@ -24,7 +19,7 @@ export const deepOmit = (obj: any, keysToOmit: any) => {
   return omitFromObject(obj)
 }
 
-export const flattenObject = (obj: any) => {
+export const deepFlatten = (obj: any) => {
   const flatten = (o: any): any => {
     if (typeof o === 'object' && o !== null) {
       if (Array.isArray(o)) return o.map((item) => flatten(item))

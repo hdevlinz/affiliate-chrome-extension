@@ -1,23 +1,47 @@
-import { ConsoleType } from '../types/enums'
+export const isDev = process.env.NODE_ENV == 'development'
+export const logStyle = 'color: #a394ff; background: #28243d;'
 
-const isDev = process.env.NODE_ENV == 'development'
-const logStyle = 'color: #a394ff; background: #28243d;'
+export enum ConsoleType {
+  LOG = 'log',
+  INFO = 'info',
+  WARN = 'warn',
+  ERROR = 'error'
+}
 
-export const logger = (obj: { message: string; data?: any; level?: ConsoleType }) => {
-  if (!isDev) return
+class Logger {
+  private log(message: string, data?: any, level: ConsoleType = ConsoleType.LOG) {
+    if (!isDev) return
 
-  const { message, data, level } = obj
-  switch (level) {
-    case ConsoleType.INFO:
-      console.info(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
-      break
-    case ConsoleType.WARN:
-      console.warn(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
-      break
-    case ConsoleType.ERROR:
-      console.error(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
-      break
-    default:
-      console.log(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+    switch (level) {
+      case ConsoleType.INFO:
+        console.info(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+        break
+      case ConsoleType.WARN:
+        console.warn(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+        break
+      case ConsoleType.ERROR:
+        console.error(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+        break
+      default:
+        console.log(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+    }
+  }
+
+  public logGeneric(message: string, data?: any) {
+    this.log(message, data)
+  }
+
+  public info(message: string, data?: any) {
+    this.log(message, data, ConsoleType.INFO)
+  }
+
+  public warn(message: string, data?: any) {
+    this.log(message, data, ConsoleType.WARN)
+  }
+
+  public error(message: string, data?: any) {
+    this.log(message, data, ConsoleType.ERROR)
   }
 }
+
+export const logger = new Logger()
