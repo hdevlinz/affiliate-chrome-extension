@@ -22,7 +22,7 @@ if (window.location.host.includes(AFFILIATE_TIKTOK_HOST) && window.location.path
   }
 }
 
-const allFetchPromises: Promise<any>[] = []
+const fetchPromisesList: Promise<any>[] = []
 let isCrawling = false
 let startTime = 0
 let creatorIds: string[] = []
@@ -38,7 +38,7 @@ chrome.runtime.onMessage.addListener(async (message) => {
 
   switch (message.action) {
     case ActionType.START_CRAWLING:
-      allFetchPromises.length = 0
+      fetchPromisesList.length = 0
       isCrawling = true
       startTime = message.startTime || Date.now()
       creatorIds = message.creatorIds || []
@@ -62,7 +62,7 @@ chrome.runtime.onMessage.addListener(async (message) => {
       break
 
     case ActionType.RESET_CRAWLING:
-      allFetchPromises.length = 0
+      fetchPromisesList.length = 0
       isCrawling = false
       startTime = 0
       creatorIds = []
@@ -87,8 +87,9 @@ chrome.runtime.onMessage.addListener(async (message) => {
 window.addEventListener(
   'message',
   async (event) => {
-    if (event.source !== window || event.data.type !== 'adu_affiliate' || currentCreatorIndex >= creatorIds.length)
+    if (event.source !== window || event.data.type !== 'adu_affiliate' || currentCreatorIndex >= creatorIds.length) {
       return
+    }
 
     if (event.data.action !== ActionType.FETCH_DATA) {
       return logger({
@@ -154,7 +155,7 @@ window.addEventListener(
       }
     })
 
-    allFetchPromises.push(...fetchCreatorProfiles)
+    fetchPromisesList.push(...fetchCreatorProfiles)
 
     const creatorProfileResponses = await Promise.all(fetchCreatorProfiles)
     const filteredProfileResults = creatorProfileResponses.filter(Boolean)
@@ -184,13 +185,10 @@ window.addEventListener(
 )
 
 const handleCrawlCreators = async () => {
-  if (!isCrawling) {
-    await Promise.allSettled(allFetchPromises)
-    return
-  }
+  if (!isCrawling || currentCreatorIndex >= creatorIds.length) {
+    await Promise.allSettled(fetchPromisesList) // Wait for all promises to complete
 
-  if (currentCreatorIndex >= creatorIds.length) {
-    await Promise.allSettled(allFetchPromises) // Wait for all promises to complete
+    if (!isCrawling) return
 
     return chrome.storage.local.set(
       {
@@ -206,7 +204,7 @@ const handleCrawlCreators = async () => {
             message: 'The creator crawling process has been completed for all creators.'
           }
         })
-        allFetchPromises.length = 0
+        fetchPromisesList.length = 0
         isCrawling = false
         startTime = 0
         creatorIds = []
