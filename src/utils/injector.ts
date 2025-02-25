@@ -1,12 +1,8 @@
-import { ConsoleType } from '../types/enums'
 import { logger } from './logger'
 
 export const injector = {
   injectSidePanel: () => {
-    logger({
-      message: 'Injector Script: Injecting side panel',
-      level: ConsoleType.INFO
-    })
+    logger.info('Injector Script: Injecting side panel')
 
     const aduSidePanelDiv = document.createElement('div')
     aduSidePanelDiv.id = 'adu-sidepanel-container'

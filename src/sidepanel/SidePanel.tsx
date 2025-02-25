@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaCloudDownloadAlt, FaFileExport, FaFileUpload, FaPlay, FaStop, FaSync } from 'react-icons/fa'
+import { FaCloudDownloadAlt, FaCog, FaFileExport, FaFileUpload, FaPlay, FaStop, FaSync } from 'react-icons/fa'
 import { ActionType, SwalIconType } from '../types/enums'
 import { isEmptyArray, isNullOrUndefined } from '../utils/checks'
 import { formatSeconds, getFormattedDate } from '../utils/formatters'
@@ -18,51 +18,61 @@ export const SidePanel = () => {
   const [notFoundCreators, setNotFoundCreators] = useState<string[]>([])
 
   const handleFetchFromAPI = async () => {
-    ADUSwal({
-      title: 'Fetching Creator IDs',
-      text: 'Please wait while we fetch creator IDs from the API...',
-      icon: SwalIconType.INFO,
-      showConfirmButton: false,
-      allowOutsideClick: false,
-      allowEscapeKey: false
+    chrome.storage.sync.get(['apiEndpoint'], async ({ apiEndpoint }) => {
+      if (isNullOrUndefined(apiEndpoint)) {
+        return ADUSwal({
+          title: 'API Error',
+          text: 'API endpoint not configured. Please set the API endpoint in the extension settings.',
+          icon: SwalIconType.ERROR
+        })
+      }
+
+      ADUSwal({
+        title: 'Fetching Creator IDs',
+        text: 'Please wait while we fetch creator IDs from the API...',
+        icon: SwalIconType.INFO,
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      })
+
+      try {
+        const response = await fetch(apiEndpoint)
+        if (!response.ok) {
+          return ADUSwal({
+            title: 'API Error',
+            text: 'Failed to fetch creator IDs from the API.',
+            icon: SwalIconType.ERROR
+          })
+        }
+
+        const creatorJsonResponse = await response.json()
+        if (isEmptyArray(creatorJsonResponse)) {
+          return ADUSwal({
+            title: 'API Error',
+            text: 'No creator IDs were fetched from the API.',
+            icon: SwalIconType.ERROR
+          })
+        }
+
+        const creatorIds = creatorJsonResponse.map((creator: any) => creator.id)
+        setCreatorIds(creatorIds)
+        ADUSwal({
+          title: 'API Fetched',
+          text: `Successfully fetched ${creatorIds.length} creator IDs from the API.`,
+          icon: SwalIconType.SUCCESS,
+          timer: 2000,
+          showConfirmButton: false
+        })
+      } catch (error) {
+        console.error('Error fetching creator IDs:', error)
+        ADUSwal({
+          title: 'API Error',
+          text: 'An error occurred while trying to fetch creator IDs from the API.',
+          icon: SwalIconType.ERROR
+        })
+      }
     })
-
-    try {
-      const response = await fetch('https://67bbf28ded4861e07b38a491.mockapi.io/api/v1/creator-ids/creators')
-      if (!response.ok) {
-        return ADUSwal({
-          title: 'API Error',
-          text: 'Failed to fetch creator IDs from the API.',
-          icon: SwalIconType.ERROR
-        })
-      }
-
-      const creatorJsonResponse = await response.json()
-      if (isEmptyArray(creatorJsonResponse)) {
-        return ADUSwal({
-          title: 'API Error',
-          text: 'No creator IDs were fetched from the API.',
-          icon: SwalIconType.ERROR
-        })
-      }
-
-      const creatorIds = creatorJsonResponse.map((creator: any) => creator.id)
-      setCreatorIds(creatorIds)
-      ADUSwal({
-        title: 'API Fetched',
-        text: `Successfully fetched ${creatorIds.length} creator IDs from the API.`,
-        icon: SwalIconType.SUCCESS,
-        timer: 2000,
-        showConfirmButton: false
-      })
-    } catch (error) {
-      console.error('Error fetching creator IDs:', error)
-      ADUSwal({
-        title: 'API Error',
-        text: 'An error occurred while trying to fetch creator IDs from the API.',
-        icon: SwalIconType.ERROR
-      })
-    }
   }
 
   const handleUploadClick = () => fileInputRef.current?.click()
@@ -111,6 +121,11 @@ export const SidePanel = () => {
       })
     }
     reader.readAsText(file)
+  }
+
+  const handleOpenOptionsPage = () => {
+    if (chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage()
+    else window.open(chrome.runtime.getURL('templates/options.html'))
   }
 
   const handleStartCrawl = () => {
@@ -297,26 +312,26 @@ export const SidePanel = () => {
         'notFoundCreators',
         'currentCreatorIndex'
       ],
-      (store) => {
-        const totalCreatorIdsCount = isEmptyArray(store.creatorIds) ? 0 : store.creatorIds.length
+      (result) => {
+        const totalCreatorIdsCount = isEmptyArray(result.creatorIds) ? 0 : result.creatorIds.length
         const storedCanContinue =
-          !!!store.isCrawling &&
-          !isNullOrUndefined(store.currentCreatorIndex) &&
-          store.currentCreatorIndex < totalCreatorIdsCount
-        const crawledCreatorsCount = isEmptyArray(store.crawledCreators) ? 0 : store.crawledCreators.length
+          !!!result.isCrawling &&
+          !isNullOrUndefined(result.currentCreatorIndex) &&
+          result.currentCreatorIndex < totalCreatorIdsCount
+        const crawledCreatorsCount = isEmptyArray(result.crawledCreators) ? 0 : result.crawledCreators.length
         const calculatedProgress =
-          totalCreatorIdsCount > 0 && !isNullOrUndefined(store.processCount)
-            ? Math.round((store.processCount / totalCreatorIdsCount) * 100)
+          totalCreatorIdsCount > 0 && !isNullOrUndefined(result.processCount)
+            ? Math.round((result.processCount / totalCreatorIdsCount) * 100)
             : 0
 
-        setIsLoggedIn(!!store.hasMsToken)
-        setIsCrawling(!!store.isCrawling)
+        setIsLoggedIn(!!result.hasMsToken)
+        setIsCrawling(!!result.isCrawling)
         setCanContinue(storedCanContinue)
         setCrawlProgress(calculatedProgress)
         setCrawledCount(crawledCreatorsCount)
-        setCrawlDuration(formatSeconds(store.crawlDurationSeconds))
-        setCreatorIds(store.creatorIds || [])
-        setNotFoundCreators(store.notFoundCreators || [])
+        setCrawlDuration(formatSeconds(result.crawlDurationSeconds))
+        setCreatorIds(result.creatorIds || [])
+        setNotFoundCreators(result.notFoundCreators || [])
       }
     )
 
@@ -381,11 +396,11 @@ export const SidePanel = () => {
     <main className="side-panel-container">
       {isLoggedIn ? (
         <>
-          <h3>TikTok Creator Data Crawler</h3>
+          <h3 className="title">TikTok Creator Data Crawler</h3>
           <div className="input-area">
             <label htmlFor="creatorIds" className="input-label">
               Creator IDs:
-              <div>
+              <div className="input-actions">
                 <button
                   className={`icon-button ${isCrawling ? 'disabled' : ''}`}
                   disabled={isCrawling}
@@ -403,6 +418,15 @@ export const SidePanel = () => {
                   onClick={handleUploadClick}
                 >
                   <FaFileUpload className={`${isCrawling ? 'disabled' : ''}`} />
+                </button>
+                <button
+                  className={`icon-button ${isCrawling ? 'disabled' : ''}`}
+                  disabled={isCrawling}
+                  title="Open Options Page"
+                  type="button"
+                  onClick={handleOpenOptionsPage}
+                >
+                  <FaCog className={`${isCrawling ? 'disabled' : ''}`} />
                 </button>
               </div>
             </label>
@@ -468,11 +492,11 @@ export const SidePanel = () => {
           </div>
 
           <div className="progress-area">
-            <label htmlFor="crawlerProgress" className="progress-label">
+            <label htmlFor="crawler-progress" className="progress-label">
               Crawling Progress:
             </label>
 
-            <progress id="crawlerProgress" value={crawlProgress} max="100" className="progress-bar" />
+            <progress id="crawler-progress" value={crawlProgress} max="100" className="progress-bar" />
 
             <span className="progress-percentage">{crawlProgress}%</span>
           </div>
@@ -481,23 +505,23 @@ export const SidePanel = () => {
             Crawled Creators: {crawledCount} / {creatorIds.filter(Boolean).length}
           </span>
 
-          {crawlDuration && <span className="crawl-duration">Crawl Duration: {crawlDuration}</span>}
+          {crawlDuration && <span className={crawlDuration}>Crawl Duration: {crawlDuration}</span>}
 
           {!isEmptyArray(notFoundCreators) && (
             <>
-              <hr style={{ margin: '0.75rem 0' }} />
+              <hr className="separator" />
               <div className="not-found-creators-area">
                 <h4>Not Found Creator IDs</h4>
                 <table className="not-found-table">
                   <thead>
                     <tr>
-                      <th>Creator ID</th>
+                      <th className="table-th">Creator ID</th>
                     </tr>
                   </thead>
                   <tbody>
                     {notFoundCreators.map((id, index) => (
                       <tr key={index}>
-                        <td>{id}</td>
+                        <td className="table-td">{id}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -515,7 +539,7 @@ export const SidePanel = () => {
         </>
       ) : (
         <div className="login-required-container">
-          <h3>Login Required</h3>
+          <h3 className="title">Login Required</h3>
           <p className="login-required-text">
             Please log in to your TikTok Affiliate account on this page to use the crawler.
           </p>

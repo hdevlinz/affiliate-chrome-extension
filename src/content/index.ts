@@ -1,15 +1,12 @@
 import { merge } from 'lodash'
 import { AFFILIATE_TIKTOK_HOST, FIND_CREATOR_PATH, KEYS_TO_OMIT, PROFILE_TYPE } from '../types/constants'
-import { ActionType, ConsoleType } from '../types/enums'
+import { ActionType } from '../types/enums'
 import { isEmptyArray, isNullOrUndefined } from '../utils/checks'
-import { deepOmit, flattenObject } from '../utils/helpers'
+import { deepFlatten, deepOmit } from '../utils/helpers'
 import { injector } from '../utils/injector'
 import { logger } from '../utils/logger'
 
-logger({
-  message: 'Content script: Running',
-  level: ConsoleType.INFO
-})
+logger.info('Content script: Running')
 
 if (window.location.host.includes(AFFILIATE_TIKTOK_HOST) && window.location.pathname === FIND_CREATOR_PATH) {
   const msToken = localStorage.getItem('msToken')
@@ -30,11 +27,7 @@ let notFoundCreators: string[] = []
 let currentCreatorIndex = 0
 
 chrome.runtime.onMessage.addListener(async (message) => {
-  logger({
-    message: `Content script: Received message:`,
-    data: message,
-    level: ConsoleType.INFO
-  })
+  logger.info(`Content script: Received message:`, message)
 
   switch (message.action) {
     case ActionType.START_CRAWLING:
@@ -48,11 +41,11 @@ chrome.runtime.onMessage.addListener(async (message) => {
       break
 
     case ActionType.CONTINUE_CRAWLING:
-      chrome.storage.local.get(['creatorIds', 'notFoundCreators', 'currentCreatorIndex'], (store) => {
+      chrome.storage.local.get(['creatorIds', 'notFoundCreators', 'currentCreatorIndex'], (result) => {
         isCrawling = true
-        creatorIds = store.creatorIds || []
-        notFoundCreators = store.notFoundCreators || []
-        currentCreatorIndex = store.currentCreatorIndex || 0
+        creatorIds = result.creatorIds || []
+        notFoundCreators = result.notFoundCreators || []
+        currentCreatorIndex = result.currentCreatorIndex || 0
         handleCrawlCreators()
       })
       break
@@ -70,16 +63,13 @@ chrome.runtime.onMessage.addListener(async (message) => {
       currentCreatorIndex = 0
       break
 
-    case ActionType.TOGGLE_SIDEBAR:
+    case ActionType.TOGGLE_SIDE_PANEL:
       const aduSidePanelDiv = document.getElementById('adu-sidepanel-container')
       aduSidePanelDiv ? aduSidePanelDiv.remove() : injector.injectSidePanel()
       break
 
     default:
-      logger({
-        message: `Content script: Unknown action received: ${message.action}`,
-        level: ConsoleType.WARN
-      })
+      logger.warn(`Content script: Unknown action received: ${message.action}`)
   }
 })
 
@@ -92,30 +82,20 @@ window.addEventListener(
     }
 
     if (event.data.action !== ActionType.FETCH_DATA) {
-      return logger({
-        message: `Content script: Unknown action received from interceptor script: ${event.data.action}`,
-        level: ConsoleType.WARN
-      })
+      return logger.warn(`Content script: Unknown action received from interceptor script: ${event.data.action}`)
     }
 
     const eventPayload = event.data.payload
     const currentCreatorId = creatorIds[currentCreatorIndex]
 
-    logger({
-      message: 'Content script: Received data from interceptor script:',
-      data: eventPayload,
-      level: ConsoleType.INFO
-    })
+    logger.info('Content script: Received data from interceptor script:', eventPayload)
 
     const creatorProfiles = eventPayload.responsePayload.creator_profile_list
     const matchingCreator = creatorProfiles?.find((creator: any) => creator.handle.value === currentCreatorId)
 
     if (isEmptyArray(creatorProfiles) || isNullOrUndefined(matchingCreator)) {
       notFoundCreators.push(currentCreatorId)
-      return logger({
-        message: `Content script: Creator '${currentCreatorId}' not found in search results.`,
-        level: ConsoleType.WARN
-      })
+      return logger.warn(`Content script: Creator '${currentCreatorId}' not found in search results.`)
     }
 
     const headers = {
@@ -143,15 +123,11 @@ window.addEventListener(
 
         if (code !== 0 || message !== 'success') throw new Error(`API error! code: ${code}, message: ${message}`)
 
-        const normalizedProfileData = flattenObject(deepOmit(profileData, KEYS_TO_OMIT))
+        const normalizedProfileData = deepFlatten(deepOmit(profileData, KEYS_TO_OMIT))
         return { data: normalizedProfileData }
       } catch (error) {
         notFoundCreators.push(currentCreatorId)
-        logger({
-          message: `Content script: Error fetching profile type '${type}' for creator '${currentCreatorId}':`,
-          data: error,
-          level: ConsoleType.ERROR
-        })
+        logger.error(`Content script: Error fetching profile type '${type}' for creator '${currentCreatorId}':`, error)
       }
     })
 
@@ -161,10 +137,7 @@ window.addEventListener(
     const filteredProfileResults = creatorProfileResponses.filter(Boolean)
 
     if (isEmptyArray(filteredProfileResults)) {
-      return logger({
-        message: `Content script: Creator '${currentCreatorId}' has no profiles.`,
-        level: ConsoleType.WARN
-      })
+      return logger.warn(`Content script: Creator '${currentCreatorId}' has no profiles.`)
     }
 
     const creatorProfile = {
@@ -174,12 +147,8 @@ window.addEventListener(
       profiles: merge({}, ...filteredProfileResults.map((item) => item.data))
     }
 
-    logger({
-      message: `Content script: profiles of creator: ${currentCreatorId}`,
-      data: creatorProfile,
-      level: ConsoleType.INFO
-    })
     await chrome.runtime.sendMessage({ action: ActionType.SAVE_DATA, data: creatorProfile })
+    logger.info(`Content script: profiles of creator: ${currentCreatorId}`, creatorProfile)
   },
   false
 )
@@ -188,7 +157,15 @@ const handleCrawlCreators = async () => {
   if (!isCrawling || currentCreatorIndex >= creatorIds.length) {
     await Promise.allSettled(fetchPromisesList) // Wait for all promises to complete
 
-    if (!isCrawling) return
+    if (!isCrawling) {
+      return await chrome.runtime.sendMessage({
+        action: ActionType.SHOW_NOTIFICATION,
+        notification: {
+          title: 'Creator Crawler Stopped',
+          message: 'The creator crawling process has been stopped.'
+        }
+      })
+    }
 
     return chrome.storage.local.set(
       {
@@ -213,13 +190,10 @@ const handleCrawlCreators = async () => {
     )
   }
 
-  const searchInput = document.querySelector('input[data-tid="m4b_input_search"]') as HTMLInputElement
+  const searchInput = document.querySelector('input[data-tid="m4b_input_search"]') as HTMLInputElement | null
   if (!searchInput) {
     isCrawling = false
-    return logger({
-      message: 'Content script: Search input field not found! Crawling cannot continue.',
-      level: ConsoleType.ERROR
-    })
+    return logger.warn('Content script: Search input field not found! Crawling cannot continue.')
   }
 
   chrome.storage.local.get(['processCount'], async ({ processCount }) => {
@@ -240,14 +214,13 @@ const handleCrawlCreators = async () => {
     })
   )
 
-  logger({
-    message: `Content script: Search creator: ${currentCreatorId} (Index: ${currentCreatorIndex + 1}/${creatorIds.length})`,
-    level: ConsoleType.INFO
-  })
-
   setTimeout(async () => {
     currentCreatorIndex++
     await chrome.storage.local.set({ currentCreatorIndex })
     handleCrawlCreators()
   }, 5000)
+
+  logger.info(
+    `Content script: Search creator: ${currentCreatorId} (Index: ${currentCreatorIndex + 1}/${creatorIds.length})`
+  )
 }

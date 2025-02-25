@@ -59,7 +59,15 @@ export const dateToTimeAgoString = (date: Date) => {
   return `${Math.floor(seconds)} seconds`
 }
 
-export function formatNumber(value: any): string {
+export const formatDateToTimeAgoString = (value?: string | null) => {
+  if (!value) return '-'
+
+  const date = new Date(value)
+
+  return `${formatDate(value)} (${dateToTimeAgoString(date)} ago)`
+}
+
+export function formatNumber(value: any) {
   if (value === undefined || value === null) return '-'
 
   if (typeof value === 'string') {
@@ -77,14 +85,6 @@ export function formatNumber(value: any): string {
   if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`
 
   return value.toString()
-}
-
-export const formatDateToTimeAgoString = (value?: string | null) => {
-  if (!value) return '-'
-
-  const date = new Date(value)
-
-  return `${formatDate(value)} (${dateToTimeAgoString(date)} ago)`
 }
 
 export const formatBytes = (value: number, unit: 'bytes' | 'KB' | 'MB' | 'GB' | 'TB' = 'bytes') => {
