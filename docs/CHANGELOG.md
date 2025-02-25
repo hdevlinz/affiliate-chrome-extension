@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.2.1...v1.3.0) (2025-02-25)
+
+### ✨ Features
+
+* Add Options Page, improve UI ([95de1fd](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/95de1fd5010cd1192fa95c3bb92c468a03b6930e))
+
 ## [1.2.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.2.0...v1.2.1) (2025-02-25)
 
 ## [1.2.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.1.1...v1.2.0) (2025-02-24)
