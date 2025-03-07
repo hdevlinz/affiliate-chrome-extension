@@ -1,6 +1,18 @@
 import { transform } from 'lodash'
 import { isObject } from './checks'
 
+export const exportFile = (data: BlobPart, filename: string, type: any) => {
+  const blob = new Blob([data], { type })
+  const url = URL.createObjectURL(blob)
+  const aTag = document.createElement('a')
+  aTag.href = url
+  aTag.download = filename
+  document.body.appendChild(aTag)
+  aTag.click()
+  document.body.removeChild(aTag)
+  URL.revokeObjectURL(url)
+}
+
 export const deepOmit = (obj: any, keysToOmit: string | string[]) => {
   const keysToOmitArray = Array.isArray(keysToOmit) ? keysToOmit : [keysToOmit]
 

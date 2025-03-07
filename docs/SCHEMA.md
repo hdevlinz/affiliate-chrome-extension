@@ -54,7 +54,7 @@ This document describes the JSON schema for a TikTok creator's
 - **`ec_live_med_share_cnt`**: `str` - Median shares on ecommerce live streams.
 - **`ec_live_med_view_cnt`**: `str` - Median views on ecommerce live streams.
 - **`ec_live_streaming_cnt_30d`**: `str` - Ecommerce live streams in last 30 days.
-- **`ec_top_video_data`**: `dict` | `None` - Top ecommerce video data.
+- **`ec_top_video_data`**: `list[dict]` | `None` - Top ecommerce video data.
 - **`ec_video_engagement`**: `int` - Engagement for ecommerce videos.
 - **`ec_video_gpm`**: `dict` - GPM for ecommerce videos (same structure as `ec_live_gpm`).
 - **`ec_video_gpm_reference`**: `bool` - Reliability of `ec_video_gpm` data.
@@ -109,7 +109,13 @@ This document describes the JSON schema for a TikTok creator's
   - **`value`**: `str`
 - **`med_gmv_revenue_range`**: `str` - Median GMV revenue range.
 - **`nickname`**: `str` - Creator's display name.
-- **`occurred_top_rank`**: `None` | `str`- Top rank.
+- **`occurred_top_rank`**: `dict` | `None`- Top rank.
+  - **`rank_type`**: `int`
+  - **`rank_period`**: `int`
+  - **`rank_content_type`**: `int`
+  - **`rank_date`**: `str`
+  - **`rank_position`**: `int`
+  - **`indus_cate`**: `str`
 - **`partnered_brand`**: `dict` - Partnered brands.
   - **`brand`**: `list[dict]` - List of brands.
     - **`id`**: `str` - Brand ID.
