@@ -8,11 +8,3 @@ export enum ActionType {
   SAVE_DATA = 'save_data',
   SHOW_NOTIFICATION = 'show_notification'
 }
-
-export enum SwalIconType {
-  SUCCESS = 'success',
-  ERROR = 'error',
-  WARNING = 'warning',
-  INFO = 'info',
-  QUESTION = 'question'
-}

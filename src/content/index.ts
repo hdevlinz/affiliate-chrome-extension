@@ -1,7 +1,9 @@
 import { merge } from 'lodash'
+import { CrawlError } from '../types'
 import { AFFILIATE_TIKTOK_HOST, FIND_CREATOR_PATH, KEYS_TO_OMIT, PROFILE_TYPE } from '../types/constants'
 import { ActionType } from '../types/enums'
-import { isEmptyArray, isNullOrUndefined } from '../utils/checks'
+import { CREATOR_HAS_NO_PROFILES, CREATOR_NOT_FOUND } from '../types/exceptions'
+import { isEmpty, isEmptyArray, isNullOrUndefined } from '../utils/checks'
 import { deepFlatten, deepOmit } from '../utils/helpers'
 import { injector } from '../utils/injector'
 import { logger } from '../utils/logger'
@@ -9,71 +11,107 @@ import { logger } from '../utils/logger'
 logger.info('Content script: Running')
 
 if (window.location.host.includes(AFFILIATE_TIKTOK_HOST) && window.location.pathname === FIND_CREATOR_PATH) {
-  const msToken = localStorage.getItem('msToken')
-  chrome.storage.local.set({ hasMsToken: !!msToken })
-
-  if (msToken) {
-    injector.injectExternalJS(chrome.runtime.getURL('inject/interceptor.js'))
-    injector.injectExternalCSS(chrome.runtime.getURL('inject/styles.css'))
-    injector.injectSidePanel()
-  }
+  injector.injectExternalJS(chrome.runtime.getURL('inject/interceptor.js'))
+  injector.injectExternalCSS(chrome.runtime.getURL('inject/styles.css'))
+  injector.injectSidePanel()
 }
 
 const fetchPromisesList: Promise<any>[] = []
-let isCrawling = false
-let startTime = 0
+let mdCreatorPostUrl: string | null | undefined = null
+let mdCreatorErrorUrl: string | null | undefined = null
+let mdHeaders: any = {}
+let useApi: boolean = false
+let isCrawling: boolean = false
+let startTime: number = 0
 let creatorIds: string[] = []
 let notFoundCreators: string[] = []
-let currentCreatorIndex = 0
+let currentCreatorIndex: number = 0
 
 chrome.runtime.onMessage.addListener(async (message) => {
   logger.info(`Content script: Received message:`, message)
 
   switch (message.action) {
-    case ActionType.START_CRAWLING:
-      fetchPromisesList.length = 0
-      isCrawling = true
-      startTime = message.startTime || Date.now()
-      creatorIds = message.creatorIds || []
-      notFoundCreators = []
-      currentCreatorIndex = 0
-      handleCrawlCreators()
-      break
+    case ActionType.START_CRAWLING: {
+      chrome.storage.sync.get(null, (syncResult) => {
+        restartCrawlSession()
 
-    case ActionType.CONTINUE_CRAWLING:
-      chrome.storage.local.get(['creatorIds', 'notFoundCreators', 'currentCreatorIndex'], (result) => {
+        mdCreatorPostUrl = syncResult.mdCreatorPostUrl
+        mdCreatorErrorUrl = syncResult.mdCreatorErrorUrl
+        useApi = !!message.useApi
+
+        if (useApi && isEmpty(mdCreatorPostUrl) && isEmpty(mdCreatorErrorUrl)) {
+          return chrome.storage.local.set({ isCrawling: false }, () => {
+            logger.error('Content script: API endpoint is not set! Crawling cannot start.')
+          })
+        }
+
+        if (syncResult.mdApiKeyFormat && syncResult.mdApiKeyValue) {
+          mdHeaders = {
+            [syncResult.mdApiKeyFormat]: syncResult.mdApiKeyValue
+          }
+        }
+
         isCrawling = true
-        creatorIds = result.creatorIds || []
-        notFoundCreators = result.notFoundCreators || []
-        currentCreatorIndex = result.currentCreatorIndex || 0
+        startTime = message.startTime || Date.now()
+        creatorIds = message.creatorIds || []
         handleCrawlCreators()
       })
       break
+    }
 
-    case ActionType.STOP_CRAWLING:
+    case ActionType.CONTINUE_CRAWLING: {
+      chrome.storage.sync.get(null, (syncResult) => {
+        mdCreatorPostUrl = syncResult.mdCreatorPostUrl
+        mdCreatorErrorUrl = syncResult.mdCreatorErrorUrl
+
+        chrome.storage.local.get(null, (localResult) => {
+          useApi = !!localResult.useApi
+
+          if (useApi && isEmpty(mdCreatorPostUrl) && isEmpty(mdCreatorErrorUrl)) {
+            return chrome.storage.local.set({ isCrawling: false }, () => {
+              logger.error('Content script: API endpoint is not set! Crawling cannot continue.')
+            })
+          }
+
+          if (syncResult.mdApiKeyFormat && syncResult.mdApiKeyValue) {
+            mdHeaders = {
+              [syncResult.mdApiKeyFormat]: syncResult.mdApiKeyValue
+            }
+          }
+
+          isCrawling = true
+          creatorIds = localResult.creatorIds || []
+          notFoundCreators = localResult.notFoundCreators || []
+          currentCreatorIndex = localResult.currentCreatorIndex || 0
+          handleCrawlCreators()
+        })
+      })
+
+      break
+    }
+
+    case ActionType.STOP_CRAWLING: {
       isCrawling = false
       break
+    }
 
-    case ActionType.RESET_CRAWLING:
-      fetchPromisesList.length = 0
-      isCrawling = false
-      startTime = 0
-      creatorIds = []
-      notFoundCreators = []
-      currentCreatorIndex = 0
+    case ActionType.RESET_CRAWLING: {
+      restartCrawlSession()
       break
+    }
 
-    case ActionType.TOGGLE_SIDE_PANEL:
+    case ActionType.TOGGLE_SIDE_PANEL: {
       const aduSidePanelDiv = document.getElementById('adu-sidepanel-container')
       aduSidePanelDiv ? aduSidePanelDiv.remove() : injector.injectSidePanel()
       break
+    }
 
-    default:
+    default: {
       logger.warn(`Content script: Unknown action received: ${message.action}`)
+    }
   }
 })
 
-// Listen for messages from the interceptor script
 window.addEventListener(
   'message',
   async (event) => {
@@ -95,7 +133,15 @@ window.addEventListener(
 
     if (isEmptyArray(creatorProfiles) || isNullOrUndefined(matchingCreator)) {
       notFoundCreators.push(currentCreatorId)
-      return logger.warn(`Content script: Creator '${currentCreatorId}' not found in search results.`)
+
+      useApi &&
+        (await handlePostCreatorsError({
+          data: { creator_id: currentCreatorId },
+          code: CREATOR_NOT_FOUND,
+          message: 'Creator not found in affiliate system'
+        }))
+
+      return logger.warn(`Content script: Creator '${currentCreatorId}' not found.`)
     }
 
     const headers = {
@@ -103,33 +149,38 @@ window.addEventListener(
       'Content-Type': 'application/json'
     }
 
-    const fetchCreatorProfiles: Promise<any>[] = PROFILE_TYPE.sort(() => Math.random() - 0.5).map(async (type) => {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+    const fetchCreatorProfiles: Promise<any>[] = PROFILE_TYPE.sort(() => Math.random() - 0.5).map(
+      async (profile_type) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      try {
-        const response = await fetch(eventPayload.url.replace('/find', '/profile'), {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify({
-            creator_oec_id: matchingCreator.creator_oecuid.value,
-            profile_types: [type]
+        try {
+          const response = await fetch(eventPayload.url.replace('/find', '/profile'), {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+              creator_oec_id: matchingCreator.creator_oecuid.value,
+              profile_types: [profile_type]
+            })
           })
-        })
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
 
-        const crawlerResponse = await response.json()
-        const { code, message, ...profileData } = crawlerResponse
+          const crawlerResponse = await response.json()
+          const { code, message, ...profileData } = crawlerResponse
 
-        if (code !== 0 || message !== 'success') throw new Error(`API error! code: ${code}, message: ${message}`)
+          if (code !== 0 || message !== 'success') throw new Error(`API error! code: ${code}, message: ${message}`)
 
-        const normalizedProfileData = deepFlatten(deepOmit(profileData, KEYS_TO_OMIT))
-        return { data: normalizedProfileData }
-      } catch (error) {
-        notFoundCreators.push(currentCreatorId)
-        logger.error(`Content script: Error fetching profile type '${type}' for creator '${currentCreatorId}':`, error)
+          const normalizedProfileData = deepFlatten(deepOmit(profileData, KEYS_TO_OMIT))
+          return { data: normalizedProfileData }
+        } catch (error) {
+          notFoundCreators.push(currentCreatorId)
+          logger.error(
+            `Content script: Error fetching profile type '${profile_type}' for creator '${currentCreatorId}':`,
+            error
+          )
+        }
       }
-    })
+    )
 
     fetchPromisesList.push(...fetchCreatorProfiles)
 
@@ -137,21 +188,42 @@ window.addEventListener(
     const filteredProfileResults = creatorProfileResponses.filter(Boolean)
 
     if (isEmptyArray(filteredProfileResults)) {
+      useApi &&
+        (await handlePostCreatorsError({
+          data: { creator_id: currentCreatorId },
+          code: CREATOR_HAS_NO_PROFILES,
+          message: `Creator '${currentCreatorId}' has no profiles.`
+        }))
+
       return logger.warn(`Content script: Creator '${currentCreatorId}' has no profiles.`)
     }
 
-    const creatorProfile = {
+    const creatorData = {
       id: matchingCreator.creator_oecuid.value,
       uniqueId: matchingCreator.handle.value,
       nickname: matchingCreator.nickname.value,
       profiles: merge({}, ...filteredProfileResults.map((item) => item.data))
     }
 
-    await chrome.runtime.sendMessage({ action: ActionType.SAVE_DATA, data: creatorProfile })
-    logger.info(`Content script: profiles of creator: ${currentCreatorId}`, creatorProfile)
+    logger.info(`Content script: profiles of creator: ${currentCreatorId}`, creatorData)
+    await chrome.runtime.sendMessage({ action: ActionType.SAVE_DATA, data: creatorData })
+    useApi && (await handlePostCreatorsData(creatorData))
   },
   false
 )
+
+const restartCrawlSession = () => {
+  fetchPromisesList.length = 0
+  mdCreatorPostUrl = null
+  mdCreatorErrorUrl = null
+  mdHeaders = {}
+  useApi = false
+  isCrawling = false
+  startTime = 0
+  creatorIds = []
+  notFoundCreators = []
+  currentCreatorIndex = 0
+}
 
 const handleCrawlCreators = async () => {
   if (!isCrawling || currentCreatorIndex >= creatorIds.length) {
@@ -181,11 +253,7 @@ const handleCrawlCreators = async () => {
             message: 'The creator crawling process has been completed for all creators.'
           }
         })
-        fetchPromisesList.length = 0
-        isCrawling = false
-        startTime = 0
-        creatorIds = []
-        currentCreatorIndex = 0
+        restartCrawlSession()
       }
     )
   }
@@ -214,13 +282,54 @@ const handleCrawlCreators = async () => {
     })
   )
 
-  setTimeout(async () => {
+  setTimeout(() => {
     currentCreatorIndex++
-    await chrome.storage.local.set({ currentCreatorIndex })
-    handleCrawlCreators()
-  }, 5000)
+    chrome.storage.local.set({ currentCreatorIndex }, handleCrawlCreators)
+  }, 4000)
 
   logger.info(
-    `Content script: Search creator: ${currentCreatorId} (Index: ${currentCreatorIndex + 1}/${creatorIds.length})`
+    `Content script: Search creator: ${currentCreatorId} (Index: ${currentCreatorIndex + 1} / ${creatorIds.length})`
   )
+}
+
+const handlePostCreatorsData = async (data: any) => {
+  const validatedCreatorsData = Array.isArray(data) ? data : [data]
+
+  try {
+    const response = await fetch(mdCreatorPostUrl as string, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...mdHeaders
+      },
+      body: JSON.stringify(validatedCreatorsData)
+    })
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+
+    logger.info('Content script: Creators data posted successfully')
+  } catch (error) {
+    logger.error('Content script: Error posting creators data:', error)
+  }
+}
+
+const handlePostCreatorsError = async (data: CrawlError | CrawlError[]) => {
+  const validatedCreatorsError = Array.isArray(data) ? data : [data]
+
+  try {
+    const response = await fetch(mdCreatorErrorUrl as string, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...mdHeaders
+      },
+      body: JSON.stringify(validatedCreatorsError)
+    })
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+
+    logger.info('Content script: Creators error posted successfully')
+  } catch (error) {
+    logger.error('Content script: Error posting creators error:', error)
+  }
 }

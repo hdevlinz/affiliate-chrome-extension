@@ -13,17 +13,24 @@ class Logger {
     if (!isDev) return
 
     switch (level) {
-      case ConsoleType.INFO:
-        console.info(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+      case ConsoleType.INFO: {
+        console.info(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
         break
-      case ConsoleType.WARN:
-        console.warn(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+      }
+
+      case ConsoleType.WARN: {
+        console.warn(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
         break
-      case ConsoleType.ERROR:
-        console.error(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+      }
+
+      case ConsoleType.ERROR: {
+        console.error(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
         break
-      default:
-        console.log(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+      }
+
+      default: {
+        console.log(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
+      }
     }
   }
 

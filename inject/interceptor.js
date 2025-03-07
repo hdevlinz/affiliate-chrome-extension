@@ -1,5 +1,3 @@
-console.log(`%c ADU %cInterceptor Script: Running.`, 'color: #a394ff; background: #28243d;', 'color: #fff')
-
 const ENDPOINTS = { FIND: '/api/v1/oec/affiliate/creator/marketplace/find' }
 
 const XHR = XMLHttpRequest.prototype
@@ -33,7 +31,7 @@ XHR.send = function (postData) {
         status: self.status,
         requestHeaders: requestHeaders,
         requestPayload: postData,
-        responsePayload: responsePayload,
+        responsePayload: responsePayload
       })
     } catch (error) {
       console.error(`error intercepting XHR: ${error}`)
@@ -67,7 +65,7 @@ window.fetch = async function (...args) {
       status: response.status,
       requestHeaders: config?.headers,
       requestPayload: config?.body,
-      responsePayload: responsePayload,
+      responsePayload: responsePayload
     })
 
     return response
