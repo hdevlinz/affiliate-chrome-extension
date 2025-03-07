@@ -1,3 +1,9 @@
+## [1.4.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.3.0...v1.4.0) (2025-03-07)
+
+### ✨ Features
+
+* Update project name and templates to Tiktok Affiliate Crawler; add mock API functionality ([e24e1a3](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/e24e1a371bdbe99f352900998078e3139d53c8f0))
+
 ## [1.3.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.2.1...v1.3.0) (2025-02-25)
 
 ### ✨ Features
