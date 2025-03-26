@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.4.0...v1.5.0) (2025-03-26)
+
+### ✨ Features
+
+* Enhance Chrome Extension ([f2474d9](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/f2474d9ff535d4fb9967536d1cbd0ce1ce0aa53b))
+
 ## [1.2.6](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.2.5...v1.2.6) (2025-03-20)
 
 ### 🛠 Miscellaneous Chores
