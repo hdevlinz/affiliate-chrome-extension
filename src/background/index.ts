@@ -14,18 +14,36 @@ const INITIAL_STORAGE_STATE = {
   creatorIds: [],
   crawledCreators: [],
   notFoundCreators: [],
-  currentCreatorIndex: 0
+  currentCreatorIndex: 0,
+  crawlIntervalDuration: 120,
+  crawlIntervalUnit: 'seconds'
 }
+
+chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.storage.local.set(INITIAL_STORAGE_STATE)
+  await chrome.sidePanel.setOptions({ enabled: false })
+})
+
+chrome.action.onClicked.addListener(async ({ id, url }) => {
+  if (isNullOrUndefined(id) || isNullOrUndefined(url)) return
+
+  const parsedUrl = new URL(url)
+  if (!parsedUrl.host.includes(AFFILIATE_TIKTOK_HOST) || parsedUrl.pathname !== FIND_CREATOR_PATH) {
+    return await chrome.tabs.create({ url: FIND_CREATOR_URL })
+  }
+
+  await chrome.tabs.sendMessage(id, { action: ActionType.TOGGLE_SIDE_PANEL })
+})
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   logger.info(`Background script: Received message:`, message)
 
   switch (message.action) {
     case ActionType.SAVE_DATA: {
-      chrome.storage.local.get(['crawledCreators'], async ({ crawledCreators }) => {
-        const updatedCrawledCreators = [...(crawledCreators || []), message.data]
-        await chrome.storage.local.set({ crawledCreators: updatedCrawledCreators })
-      })
+      const { crawledCreators } = await chrome.storage.local.get(['crawledCreators'])
+
+      const updatedCrawledCreators = [...(crawledCreators || []), message.data]
+      await chrome.storage.local.set({ crawledCreators: updatedCrawledCreators })
       break
     }
 
@@ -44,20 +62,4 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       logger.warn(`Background script: Unknown action received: ${message.action}`)
     }
   }
-})
-
-chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.local.set(INITIAL_STORAGE_STATE)
-  await chrome.sidePanel.setOptions({ enabled: false })
-})
-
-chrome.action.onClicked.addListener(async ({ id, url }) => {
-  if (isNullOrUndefined(id) || isNullOrUndefined(url)) return
-
-  const parsedUrl = new URL(url)
-  if (!parsedUrl.host.includes(AFFILIATE_TIKTOK_HOST) || parsedUrl.pathname !== FIND_CREATOR_PATH) {
-    return await chrome.tabs.create({ url: FIND_CREATOR_URL })
-  }
-
-  await chrome.tabs.sendMessage(id, { action: ActionType.TOGGLE_SIDE_PANEL })
 })

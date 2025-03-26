@@ -5,7 +5,8 @@ export enum ConsoleType {
   LOG = 'log',
   INFO = 'info',
   WARN = 'warn',
-  ERROR = 'error'
+  ERROR = 'error',
+  DEBUG = 'debug'
 }
 
 class Logger {
@@ -14,22 +15,26 @@ class Logger {
 
     switch (level) {
       case ConsoleType.INFO: {
-        console.info(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
+        console.info(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
         break
       }
 
       case ConsoleType.WARN: {
-        console.warn(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
+        console.warn(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
         break
       }
 
       case ConsoleType.ERROR: {
-        console.error(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
+        console.error(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
         break
       }
 
+      case ConsoleType.DEBUG: {
+        console.debug(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
+      }
+
       default: {
-        console.log(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
+        console.log(`%c ADU %c${message}`, logStyle, 'color: #fff', data)
       }
     }
   }
@@ -48,6 +53,10 @@ class Logger {
 
   public error(message: string, data?: any) {
     this.log(message, data, ConsoleType.ERROR)
+  }
+
+  public debug(message: string, data?: any) {
+    this.log(message, data, ConsoleType.DEBUG)
   }
 }
 

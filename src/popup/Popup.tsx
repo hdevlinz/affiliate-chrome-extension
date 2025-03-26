@@ -1,4 +1,4 @@
-import './Popup.css'
+import './Popup.scss'
 
 export const Popup = () => {
   return (

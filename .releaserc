@@ -17,6 +17,10 @@
         "presetConfig": {
           "types": [
             {
+              "type": "ADU-*",
+              "section": "🚀 Task"
+            },
+            {
               "type": "feat",
               "section": "✨ Features"
             },
@@ -95,11 +99,11 @@
         "assets": [
           {
             "path": "package/*.zip",
-            "label": "Tiktok-Affiliate-Crawler-v${nextRelease.version}"
+            "label": "Adu-Affiliate-Crawler-v${nextRelease.version}"
           },
           {
             "path": "public.zip",
-            "label": "Tiktok-Affiliate-Assets-v${nextRelease.version}"
+            "label": "Adu-Assets-v${nextRelease.version}"
           }
         ],
         "successComment": false,

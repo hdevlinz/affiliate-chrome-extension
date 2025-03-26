@@ -1,10 +1,10 @@
 {
-  "name": "tiktok_affiliate_crawler",
-  "displayName": "Tiktok Affiliate Crawler",
-  "version": "1.4.0",
+  "name": "adu_affiliate_crawler",
+  "displayName": "Adu Affiliate Crawler",
+  "version": "1.2.6",
   "private": true,
-  "author": "Devlin",
-  "description": "Tiktok Affiliate Crawler",
+  "author": "ADU - TDVN",
+  "description": "Adu Affiliate Crawler",
   "type": "module",
   "engines": {
     "node": ">=14.18.0"
@@ -39,9 +39,17 @@
     "gulp": "^4.0.2",
     "gulp-zip": "^6.0.0",
     "prettier": "^3.0.3",
+    "sass": "^1.86.0",
     "semantic-release": "^24.2.3",
     "typescript": "^5.2.2",
     "vite": "^4.4.11"
   },
-  "packageManager": "pnpm@9.13.2"
+  "packageManager": "pnpm@10.6.5",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "es5-ext",
+      "esbuild"
+    ]
+  }
 }

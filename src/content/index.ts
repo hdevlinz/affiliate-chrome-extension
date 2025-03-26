@@ -16,86 +16,249 @@ if (window.location.host.includes(AFFILIATE_TIKTOK_HOST) && window.location.path
   injector.injectSidePanel()
 }
 
-const fetchPromisesList: Promise<any>[] = []
-let mdCreatorPostUrl: string | null | undefined = null
-let mdCreatorErrorUrl: string | null | undefined = null
-let mdHeaders: any = {}
-let useApi: boolean = false
-let isCrawling: boolean = false
-let startTime: number = 0
-let creatorIds: string[] = []
-let notFoundCreators: string[] = []
-let currentCreatorIndex: number = 0
+let crawlTimeoutId: NodeJS.Timeout | null = null
+
+const state = {
+  fetchPromises: [] as Promise<any>[],
+  postCreatorDataEndpoint: null as string | null,
+  postCreatorErrorEndpoint: null as string | null,
+  headers: {} as Record<string, string>,
+  useApi: false,
+  isCrawling: false,
+  startTime: 0,
+  creatorIds: [] as string[],
+  notFoundCreators: [] as string[],
+  currentCreatorIndex: 0
+}
+
+const restartCrawlSession = () => {
+  Object.assign(state, {
+    fetchPromises: [],
+    postCreatorDataEndpoint: null,
+    postCreatorErrorEndpoint: null,
+    customHeaders: {},
+    useApi: false,
+    isCrawling: false,
+    startTime: 0,
+    creatorIds: [],
+    notFoundCreators: [],
+    currentCreatorIndex: 0
+  })
+}
+
+// Post creators data to endpoint
+const handlePostCreatorsData = async (data: any) => {
+  const validatedCreatorsData = Array.isArray(data) ? data : [data]
+
+  try {
+    await fetch(state.postCreatorDataEndpoint as string, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        ...state.headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(validatedCreatorsData)
+    })
+  } catch (error) {
+    logger.error('Content script: Error posting creators data:', error)
+  }
+}
+
+// Post creators error to endpoint
+const handlePostCreatorsError = async (data: CrawlError | CrawlError[]) => {
+  const validatedCreatorsError = Array.isArray(data) ? data : [data]
+
+  try {
+    await fetch(state.postCreatorErrorEndpoint as string, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        ...state.headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(validatedCreatorsError)
+    })
+  } catch (error) {
+    logger.error('Content script: Error posting creators error:', error)
+  }
+}
+
+// Handle crawling creators
+const handleCrawlCreators = async () => {
+  // Check if crawling should stop
+  if (!state.isCrawling || state.currentCreatorIndex >= state.creatorIds.length) {
+    if (crawlTimeoutId) {
+      clearTimeout(crawlTimeoutId)
+      crawlTimeoutId = null
+    }
+
+    await Promise.allSettled(state.fetchPromises)
+
+    if (!state.isCrawling && state.currentCreatorIndex < state.creatorIds.length) {
+      return await chrome.runtime.sendMessage({
+        action: ActionType.SHOW_NOTIFICATION,
+        notification: {
+          title: 'Creator Crawler Stopped',
+          message: 'The creator crawling process has been stopped.'
+        }
+      })
+    }
+
+    const { crawledCreators } = await chrome.storage.local.get(['crawledCreators'])
+    const validCrawledCreators = isNullOrUndefined(crawledCreators) ? [] : crawledCreators
+    const crawledCreatorIds = validCrawledCreators.map((creator: { id: any }) => creator.id)
+
+    await chrome.storage.local.set({
+      isCrawling: false,
+      crawlDurationSeconds: Math.round((Date.now() - state.startTime) / 1000),
+      notFoundCreators: state.notFoundCreators.filter((creatorId) => !crawledCreatorIds.includes(creatorId))
+    })
+
+    await chrome.runtime.sendMessage({
+      action: ActionType.SHOW_NOTIFICATION,
+      notification: {
+        title: 'Creator Crawler Completed',
+        message: 'The creator crawling process has been completed for all creators.'
+      }
+    })
+    return restartCrawlSession()
+  }
+
+  // Find search input
+  const searchInput = document.querySelector('input[data-tid="m4b_input_search"]') as HTMLInputElement | null
+  if (!searchInput) {
+    if (crawlTimeoutId) {
+      clearTimeout(crawlTimeoutId)
+      crawlTimeoutId = null
+    }
+
+    state.isCrawling = false
+    logger.warn('Content script: Search input field not found! Crawling cannot continue.')
+    return
+  }
+
+  // Update process count
+  const { processCount } = await chrome.storage.local.get(['processCount'])
+  await chrome.storage.local.set({ processCount: (processCount || 0) + 1 })
+
+  // Search current creator
+  const currentCreatorId = state.creatorIds[state.currentCreatorIndex]
+  searchInput.value = currentCreatorId
+  searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+  searchInput.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true
+    })
+  )
+
+  // Move to next creator
+  crawlTimeoutId = setTimeout(async () => {
+    crawlTimeoutId = null
+    state.currentCreatorIndex++
+    await chrome.storage.local.set({ currentCreatorIndex: state.currentCreatorIndex })
+    await handleCrawlCreators()
+  }, 4000)
+
+  logger.info(
+    `Content script: Search creator: ${currentCreatorId} (Index: ${state.currentCreatorIndex + 1} / ${state.creatorIds.length})`
+  )
+}
 
 chrome.runtime.onMessage.addListener(async (message) => {
   logger.info(`Content script: Received message:`, message)
 
   switch (message.action) {
     case ActionType.START_CRAWLING: {
-      chrome.storage.sync.get(null, (syncResult) => {
-        restartCrawlSession()
+      const syncResult = await chrome.storage.sync.get(null)
+      restartCrawlSession()
 
-        mdCreatorPostUrl = syncResult.mdCreatorPostUrl
-        mdCreatorErrorUrl = syncResult.mdCreatorErrorUrl
-        useApi = !!message.useApi
+      state.postCreatorDataEndpoint = syncResult.postCreatorDataEndpoint
+      state.postCreatorErrorEndpoint = syncResult.postCreatorErrorEndpoint
+      state.useApi = !!message.useApi
 
-        if (useApi && isEmpty(mdCreatorPostUrl) && isEmpty(mdCreatorErrorUrl)) {
-          return chrome.storage.local.set({ isCrawling: false }, () => {
-            logger.error('Content script: API endpoint is not set! Crawling cannot start.')
-          })
-        }
-
-        if (syncResult.mdApiKeyFormat && syncResult.mdApiKeyValue) {
-          mdHeaders = {
-            [syncResult.mdApiKeyFormat]: syncResult.mdApiKeyValue
+      if (state.useApi && isEmpty(state.postCreatorDataEndpoint) && isEmpty(state.postCreatorErrorEndpoint)) {
+        await chrome.storage.local.set({ isCrawling: false })
+        return await chrome.runtime.sendMessage({
+          action: ActionType.SHOW_NOTIFICATION,
+          notification: {
+            title: 'Creator Crawler Stopped',
+            message: 'API endpoint is not set! Crawling cannot start.'
           }
-        }
+        })
+      }
 
-        isCrawling = true
-        startTime = message.startTime || Date.now()
-        creatorIds = message.creatorIds || []
-        handleCrawlCreators()
-      })
+      state.headers = {
+        ...state.headers,
+        ...(syncResult.apiKeyFormat && syncResult.apiKeyValue
+          ? { [syncResult.apiKeyFormat]: syncResult.apiKeyValue }
+          : {})
+      }
+
+      state.isCrawling = true
+      state.startTime = message.startTime || Date.now()
+      state.creatorIds = message.creatorIds || []
+      await handleCrawlCreators()
       break
     }
 
     case ActionType.CONTINUE_CRAWLING: {
-      chrome.storage.sync.get(null, (syncResult) => {
-        mdCreatorPostUrl = syncResult.mdCreatorPostUrl
-        mdCreatorErrorUrl = syncResult.mdCreatorErrorUrl
+      const syncResult = await chrome.storage.sync.get(null)
+      state.postCreatorDataEndpoint = syncResult.postCreatorDataEndpoint
+      state.postCreatorErrorEndpoint = syncResult.postCreatorErrorEndpoint
 
-        chrome.storage.local.get(null, (localResult) => {
-          useApi = !!localResult.useApi
+      const localResult = await chrome.storage.local.get(null)
+      state.useApi = !!localResult.useApi
 
-          if (useApi && isEmpty(mdCreatorPostUrl) && isEmpty(mdCreatorErrorUrl)) {
-            return chrome.storage.local.set({ isCrawling: false }, () => {
-              logger.error('Content script: API endpoint is not set! Crawling cannot continue.')
-            })
+      if (state.useApi && isEmpty(state.postCreatorDataEndpoint) && isEmpty(state.postCreatorErrorEndpoint)) {
+        await chrome.storage.local.set({ isCrawling: false })
+        return await chrome.runtime.sendMessage({
+          action: ActionType.SHOW_NOTIFICATION,
+          notification: {
+            title: 'Creator Crawler Stopped',
+            message: 'Content script: API endpoint is not set! Crawling cannot continue.'
           }
-
-          if (syncResult.mdApiKeyFormat && syncResult.mdApiKeyValue) {
-            mdHeaders = {
-              [syncResult.mdApiKeyFormat]: syncResult.mdApiKeyValue
-            }
-          }
-
-          isCrawling = true
-          creatorIds = localResult.creatorIds || []
-          notFoundCreators = localResult.notFoundCreators || []
-          currentCreatorIndex = localResult.currentCreatorIndex || 0
-          handleCrawlCreators()
         })
-      })
+      }
 
+      state.headers = {
+        ...state.headers,
+        ...(syncResult.apiKeyFormat && syncResult.apiKeyValue
+          ? { [syncResult.apiKeyFormat]: syncResult.apiKeyValue }
+          : {})
+      }
+
+      state.isCrawling = true
+      state.creatorIds = localResult.creatorIds || []
+      state.notFoundCreators = localResult.notFoundCreators || []
+      state.currentCreatorIndex = localResult.currentCreatorIndex || 0
+      await handleCrawlCreators()
       break
     }
 
     case ActionType.STOP_CRAWLING: {
-      isCrawling = false
+      if (crawlTimeoutId) {
+        clearTimeout(crawlTimeoutId)
+        crawlTimeoutId = null
+        logger.info('Content script: Cleared pending crawl timeout due to STOP.')
+      }
+
+      state.isCrawling = false
+      await chrome.storage.local.set({ isCrawling: false })
       break
     }
 
     case ActionType.RESET_CRAWLING: {
+      if (crawlTimeoutId) {
+        clearTimeout(crawlTimeoutId)
+        crawlTimeoutId = null
+        logger.info('Content script: Cleared pending crawl timeout due to RESET.')
+      }
+
       restartCrawlSession()
       break
     }
@@ -115,7 +278,11 @@ chrome.runtime.onMessage.addListener(async (message) => {
 window.addEventListener(
   'message',
   async (event) => {
-    if (event.source !== window || event.data.type !== 'adu_affiliate' || currentCreatorIndex >= creatorIds.length) {
+    if (
+      event.source !== window ||
+      event.data.type !== 'adu_affiliate' ||
+      state.currentCreatorIndex >= state.creatorIds.length
+    ) {
       return
     }
 
@@ -124,7 +291,7 @@ window.addEventListener(
     }
 
     const eventPayload = event.data.payload
-    const currentCreatorId = creatorIds[currentCreatorIndex]
+    const currentCreatorId = state.creatorIds[state.currentCreatorIndex]
 
     logger.info('Content script: Received data from interceptor script:', eventPayload)
 
@@ -132,16 +299,24 @@ window.addEventListener(
     const matchingCreator = creatorProfiles?.find((creator: any) => creator.handle.value === currentCreatorId)
 
     if (isEmptyArray(creatorProfiles) || isNullOrUndefined(matchingCreator)) {
-      notFoundCreators.push(currentCreatorId)
+      logger.warn(`Content script: Creator potentially not found in affiliate system: ${currentCreatorId}`)
 
-      useApi &&
-        (await handlePostCreatorsError({
-          data: { creator_id: currentCreatorId },
-          code: CREATOR_NOT_FOUND,
-          message: 'Creator not found in affiliate system'
-        }))
+      if (!state.notFoundCreators.includes(currentCreatorId)) {
+        state.notFoundCreators.push(currentCreatorId)
+        logger.info(`Content script: Added ${currentCreatorId} to notFoundCreators list.`)
 
-      return logger.warn(`Content script: Creator '${currentCreatorId}' not found.`)
+        if (state.useApi) {
+          await handlePostCreatorsError({
+            data: { creator_id: currentCreatorId },
+            code: CREATOR_NOT_FOUND,
+            message: 'Creator potentially not found in affiliate system'
+          })
+        }
+      } else {
+        logger.warn(`Content script: ${currentCreatorId} is already in notFoundCreators. Skipping duplicate add.`)
+      }
+
+      return
     }
 
     const headers = {
@@ -173,29 +348,27 @@ window.addEventListener(
           const normalizedProfileData = deepFlatten(deepOmit(profileData, KEYS_TO_OMIT))
           return { data: normalizedProfileData }
         } catch (error) {
-          notFoundCreators.push(currentCreatorId)
-          logger.error(
-            `Content script: Error fetching profile type '${profile_type}' for creator '${currentCreatorId}':`,
-            error
-          )
+          logger.error(`Content script: Error fetching profiles of creator: ${currentCreatorId}`, error)
         }
       }
     )
 
-    fetchPromisesList.push(...fetchCreatorProfiles)
+    state.fetchPromises.push(...fetchCreatorProfiles)
 
     const creatorProfileResponses = await Promise.all(fetchCreatorProfiles)
     const filteredProfileResults = creatorProfileResponses.filter(Boolean)
 
     if (isEmptyArray(filteredProfileResults)) {
-      useApi &&
+      logger.warn(`Content script: Profiles not found for creator: ${currentCreatorId}`)
+
+      return (
+        state.useApi &&
         (await handlePostCreatorsError({
           data: { creator_id: currentCreatorId },
           code: CREATOR_HAS_NO_PROFILES,
           message: `Creator '${currentCreatorId}' has no profiles.`
         }))
-
-      return logger.warn(`Content script: Creator '${currentCreatorId}' has no profiles.`)
+      )
     }
 
     const creatorData = {
@@ -206,130 +379,8 @@ window.addEventListener(
     }
 
     logger.info(`Content script: profiles of creator: ${currentCreatorId}`, creatorData)
+    state.useApi && (await handlePostCreatorsData(creatorData))
     await chrome.runtime.sendMessage({ action: ActionType.SAVE_DATA, data: creatorData })
-    useApi && (await handlePostCreatorsData(creatorData))
   },
   false
 )
-
-const restartCrawlSession = () => {
-  fetchPromisesList.length = 0
-  mdCreatorPostUrl = null
-  mdCreatorErrorUrl = null
-  mdHeaders = {}
-  useApi = false
-  isCrawling = false
-  startTime = 0
-  creatorIds = []
-  notFoundCreators = []
-  currentCreatorIndex = 0
-}
-
-const handleCrawlCreators = async () => {
-  if (!isCrawling || currentCreatorIndex >= creatorIds.length) {
-    await Promise.allSettled(fetchPromisesList) // Wait for all promises to complete
-
-    if (!isCrawling) {
-      return await chrome.runtime.sendMessage({
-        action: ActionType.SHOW_NOTIFICATION,
-        notification: {
-          title: 'Creator Crawler Stopped',
-          message: 'The creator crawling process has been stopped.'
-        }
-      })
-    }
-
-    return chrome.storage.local.set(
-      {
-        isCrawling: false,
-        crawlDurationSeconds: Math.round((Date.now() - startTime) / 1000),
-        notFoundCreators
-      },
-      async () => {
-        await chrome.runtime.sendMessage({
-          action: ActionType.SHOW_NOTIFICATION,
-          notification: {
-            title: 'Creator Crawler Completed',
-            message: 'The creator crawling process has been completed for all creators.'
-          }
-        })
-        restartCrawlSession()
-      }
-    )
-  }
-
-  const searchInput = document.querySelector('input[data-tid="m4b_input_search"]') as HTMLInputElement | null
-  if (!searchInput) {
-    isCrawling = false
-    return logger.warn('Content script: Search input field not found! Crawling cannot continue.')
-  }
-
-  chrome.storage.local.get(['processCount'], async ({ processCount }) => {
-    const newProcessCount = (processCount || 0) + 1
-    await chrome.storage.local.set({ processCount: newProcessCount })
-  })
-
-  const currentCreatorId = creatorIds[currentCreatorIndex]
-  searchInput.value = currentCreatorId
-  searchInput.dispatchEvent(new Event('input', { bubbles: true }))
-  searchInput.dispatchEvent(
-    new KeyboardEvent('keydown', {
-      key: 'Enter',
-      code: 'Enter',
-      keyCode: 13,
-      which: 13,
-      bubbles: true
-    })
-  )
-
-  setTimeout(() => {
-    currentCreatorIndex++
-    chrome.storage.local.set({ currentCreatorIndex }, handleCrawlCreators)
-  }, 4000)
-
-  logger.info(
-    `Content script: Search creator: ${currentCreatorId} (Index: ${currentCreatorIndex + 1} / ${creatorIds.length})`
-  )
-}
-
-const handlePostCreatorsData = async (data: any) => {
-  const validatedCreatorsData = Array.isArray(data) ? data : [data]
-
-  try {
-    const response = await fetch(mdCreatorPostUrl as string, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...mdHeaders
-      },
-      body: JSON.stringify(validatedCreatorsData)
-    })
-
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-
-    logger.info('Content script: Creators data posted successfully')
-  } catch (error) {
-    logger.error('Content script: Error posting creators data:', error)
-  }
-}
-
-const handlePostCreatorsError = async (data: CrawlError | CrawlError[]) => {
-  const validatedCreatorsError = Array.isArray(data) ? data : [data]
-
-  try {
-    const response = await fetch(mdCreatorErrorUrl as string, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...mdHeaders
-      },
-      body: JSON.stringify(validatedCreatorsError)
-    })
-
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-
-    logger.info('Content script: Creators error posted successfully')
-  } catch (error) {
-    logger.error('Content script: Error posting creators error:', error)
-  }
-}
