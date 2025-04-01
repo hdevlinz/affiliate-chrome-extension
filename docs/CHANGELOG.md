@@ -1,3 +1,9 @@
+## [1.6.4](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.3...v1.6.4) (2025-04-01)
+
+### 🛠 Miscellaneous Chores
+
+* remove mock api ([e5e52cd](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/e5e52cd577c6f6ce9bbc94d5720025b05a743cb0))
+
 ## [1.6.3](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.2...v1.6.3) (2025-04-01)
 
 ### 🛠 Miscellaneous Chores
