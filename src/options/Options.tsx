@@ -153,24 +153,19 @@ export const Options = () => {
   }, [intervalDuration, intervalUnit, debouncedSaveToStorage])
 
   return (
-    // Use the new top-level class
     <main className="options">
-      {/* Use the new title class */}
       <h2 className="options__title">Extension Settings</h2>
 
       {/* API Configuration Section */}
       <section className="options__section">
         <h3 className="section-title">API Configuration</h3>
 
-        {/* API Key Row - Use modifier and new group/column classes */}
         <div className="options__row options__row--api-key">
           <div className="api-key-group">
             <div className="api-key-group__column">
-              {/* Use the new label class */}
               <label htmlFor="api-key-format" className="options__label">
                 API Key Format:
               </label>
-              {/* Use the new input class */}
               <input
                 id="api-key-format"
                 className="options__input"
@@ -196,7 +191,6 @@ export const Options = () => {
           </div>
         </div>
 
-        {/* Get Creator IDs Endpoint Row */}
         <div className="options__row">
           <label htmlFor="get-creator-ids-endpoint" className="options__label">
             Get Creator IDs URL:
@@ -204,14 +198,13 @@ export const Options = () => {
           <input
             id="get-creator-ids-endpoint"
             className="options__input"
-            type="url" // Use type="url" for better semantics/validation
+            type="url"
             placeholder="Enter URL to fetch creator IDs"
             value={creatorIdsEndpoint}
             onChange={(e) => setCreatorIdsEndpoint(e.target.value)}
           />
         </div>
 
-        {/* Post Creator Data Endpoint Row */}
         <div className="options__row">
           <label htmlFor="post-creator-data-endpoint" className="options__label">
             Post Data URL:
@@ -226,7 +219,6 @@ export const Options = () => {
           />
         </div>
 
-        {/* Post Creator Error Endpoint Row */}
         <div className="options__row">
           <label htmlFor="post-creator-errors-endpoint" className="options__label">
             Post Errors URL:
@@ -246,26 +238,22 @@ export const Options = () => {
       <section className="options__section">
         <h3 className="section-title">Auto Crawl Configuration</h3>
 
-        {/* Interval Duration Row */}
         <div className="options__row">
           <label htmlFor="crawl-interval-duration" className="options__label">
             Auto Crawl Interval:
           </label>
-          {/* Use the new input group class */}
           <div className="options__input-group">
             <input
               id="crawl-interval-duration"
-              // Add input modifier class
               className="options__input options__input--interval-duration"
               type="number"
-              min="1" // Basic validation
+              min="1"
               placeholder="Duration"
               value={intervalDuration}
               onChange={(e) => setIntervalDuration(e.target.value)}
             />
             <select
               id="crawl-interval-unit"
-              // Add input modifier class
               className="options__input options__input--interval-unit"
               value={intervalUnit}
               onChange={(e) => setIntervalUnit(e.target.value)}
@@ -281,13 +269,10 @@ export const Options = () => {
       {/* Actions Section */}
       <section className="options__section">
         <h3 className="section-title">Actions</h3>
-        {/* Use action row modifier */}
         <div className="options__row options__row--actions">
-          {/* Use reusable button class + modifier */}
           <button className="button button--reset" onClick={handleResetSettings}>
             Reset All Settings
           </button>
-          {/* Use button group class for right-aligned buttons */}
           <div className="button-group">
             <button className="button button--close" onClick={() => window.close()}>
               Close
