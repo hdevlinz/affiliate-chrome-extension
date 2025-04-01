@@ -1,3 +1,9 @@
+## [1.6.3](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.2...v1.6.3) (2025-04-01)
+
+### 🛠 Miscellaneous Chores
+
+* remove ADU keyword and update title to Tiktok Affiliate Crawler ([0503765](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/0503765afc547be91e5fd299651dcbb04541b75e))
+
 ## [1.6.2](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.1...v1.6.2) (2025-04-01)
 
 ## [1.6.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.0...v1.6.1) (2025-04-01)
