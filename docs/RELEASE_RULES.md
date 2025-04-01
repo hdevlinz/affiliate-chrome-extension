@@ -40,7 +40,7 @@ git commit -m "feat(breaking): Remove support for legacy API"
 #### **Example**
 
 ```sh
-git commit -m "feat: ADU-123 Add dark mode support"
+git commit -m "feat: Add dark mode support"
 ```
 
 ➡️ **Version bump**: `1.2.3` → `1.3.0`
@@ -59,7 +59,7 @@ git commit -m "feat: ADU-123 Add dark mode support"
 ✅ **Bug fix**
 
 ```sh
-git commit -m "fix: ADU-456 Fix layout issue on mobile"
+git commit -m "fix: Fix layout issue on mobile"
 ```
 
 ✅ **Code refactor (without changing logic)**

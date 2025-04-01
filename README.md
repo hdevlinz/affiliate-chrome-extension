@@ -1,4 +1,4 @@
-# Adu Affiliate Crawler
+# Tiktok Affiliate Crawler
 
 A Chrome extension for crawling affiliate data.
 
@@ -31,7 +31,7 @@ http://localhost:8000/creators/errors
 
 ## Download
 
-You can download the latest version of the extension from the [Releases](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/releases) page.
+You can download the latest version of the extension from the [Releases](https://github.com/hdevlinz/tiktok-affiliate-crawler/releases) page.
 
 > [!NOTE]
 > Make sure to download the correct version for your browser and follow the installation instructions provided.

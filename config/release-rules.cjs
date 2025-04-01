@@ -2,7 +2,7 @@ module.exports = [
   // 🔥 Increase **major** when there is a breaking change
   { type: 'feat', scope: 'breaking', release: 'major' },
 
-  // 🚀 Increase **minor** if the commit starts with ADU-*
+  // 🚀 Increase **minor** for new features
   { type: 'feat', release: 'minor' },
 
   // 🛠️ Increase **patch** for bug fixes, minor refactors, or chore updates
