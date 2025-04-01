@@ -264,8 +264,8 @@ chrome.runtime.onMessage.addListener(async (message) => {
     }
 
     case ActionType.TOGGLE_SIDE_PANEL: {
-      const aduSidePanelDiv = document.getElementById('adu-sidepanel-container')
-      aduSidePanelDiv ? aduSidePanelDiv.remove() : injector.injectSidePanel()
+      const devlinSidePanelDiv = document.getElementById('devlin-sidepanel-container')
+      devlinSidePanelDiv ? devlinSidePanelDiv.remove() : injector.injectSidePanel()
       break
     }
 

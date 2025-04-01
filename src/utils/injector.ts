@@ -5,22 +5,22 @@ export const injector = {
     logger.info('Injector Script: Injecting side panel')
 
     const aduSidePanelDiv = document.createElement('div')
-    aduSidePanelDiv.id = 'adu-sidepanel-container'
+    aduSidePanelDiv.id = 'devlin-sidepanel-container'
     document.body.appendChild(aduSidePanelDiv)
 
     const aduIframe = document.createElement('iframe')
-    aduIframe.id = 'adu-sidepanel-iframe'
+    aduIframe.id = 'devlin-sidepanel-iframe'
     aduIframe.src = chrome.runtime.getURL('templates/sidepanel.html')
     aduSidePanelDiv.appendChild(aduIframe)
 
     const aduCloseButton = document.createElement('span')
     aduCloseButton.innerHTML = 'X'
-    aduCloseButton.id = 'adu-sidepanel-close-icon'
+    aduCloseButton.id = 'devlin-sidepanel-close-icon'
     aduCloseButton.onclick = () => aduSidePanelDiv.remove()
     aduSidePanelDiv.appendChild(aduCloseButton)
 
     const aduSpliter = document.createElement('div')
-    aduSpliter.id = 'adu-sidepanel-spliter'
+    aduSpliter.id = 'devlin-sidepanel-spliter'
     aduSidePanelDiv.appendChild(aduSpliter)
 
     const root = document.documentElement
