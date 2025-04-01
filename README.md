@@ -2,33 +2,6 @@
 
 A Chrome extension for crawling affiliate data.
 
-## Run Mock API
-
-```sh
-cd mock-api
-uvicorn api:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### Endpoints
-
-#### Get Creator Ids
-
-```sh
-http://localhost:8000/creator-ids
-```
-
-#### Post Creators Data
-
-```sh
-http://localhost:8000/creators
-```
-
-#### Post Creators Error
-
-```sh
-http://localhost:8000/creators/errors
-```
-
 ## Download
 
 You can download the latest version of the extension from the [Releases](https://github.com/hdevlinz/tiktok-affiliate-crawler/releases) page.
