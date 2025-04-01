@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.5.0...v1.6.0) (2025-04-01)
+
+### ✨ Features
+
+* auto fetch creator ids and start crawler ([8ffa1cb](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/8ffa1cb0ce7ce50abad70592442f94fe6131892a))
+
 ## [1.5.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.4.0...v1.5.0) (2025-03-26)
 
 ### ✨ Features
