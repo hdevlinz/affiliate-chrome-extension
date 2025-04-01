@@ -2,70 +2,48 @@
 
 ### ✨ Features
 
-* auto fetch creator ids and start crawler ([8ffa1cb](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/8ffa1cb0ce7ce50abad70592442f94fe6131892a))
+- auto fetch creator ids and start crawler ([8ffa1cb](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/8ffa1cb0ce7ce50abad70592442f94fe6131892a))
 
 ## [1.5.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.4.0...v1.5.0) (2025-03-26)
 
 ### ✨ Features
 
-* Enhance Chrome Extension ([f2474d9](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/f2474d9ff535d4fb9967536d1cbd0ce1ce0aa53b))
+- Enhance Chrome Extension ([f2474d9](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/f2474d9ff535d4fb9967536d1cbd0ce1ce0aa53b))
 
-## [1.2.6](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.2.5...v1.2.6) (2025-03-20)
-
-### 🛠 Miscellaneous Chores
-
-* set no-cors mode ([5e2f942](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/5e2f942bfe0cebcdf32a0c4b80c32ae45036f335))
-
-## [1.2.5](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.2.4...v1.2.5) (2025-03-09)
-
-### 🐛 Bug Fixes
-
-* improve stability and reliability ([e2851f4](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/e2851f43d527780c375483f735b9b9b409329312))
-
-## [1.2.4](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.2.3...v1.2.4) (2025-03-07)
-
-### 🐛 Bug Fixes
-
-* using application/json as content type ([1c8a199](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/1c8a199087ac78a09cae0c380c8a7f6d2e6bf7e7))
-
-## [1.2.3](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.2.2...v1.2.3) (2025-03-02)
-
-### 🛠 Miscellaneous Chores
-
-* update API endpoints and enhance error handling for creators ([5b6bbd1](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/5b6bbd10fa83e009c806ffd1b5838be0bb4f7233))
-
-## [1.2.2](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.2.1...v1.2.2) (2025-02-28)
-
-### 🛠 Miscellaneous Chores
-
-* handle send creator error ([cdfed32](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/cdfed32feaf1cb7a5c3ffee227efa07f17b2853c))
-
-## [1.2.1](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.2.0...v1.2.1) (2025-02-28)
-
-### 🛠 Miscellaneous Chores
-
-* Implement mock data API ([7eba058](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/7eba0583c6c70853e1f397094a8942cb25743cb6))
-
-## [1.2.0](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.1.0...v1.2.0) (2025-02-25)
+## [1.4.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.3.0...v1.4.0) (2025-03-07)
 
 ### ✨ Features
 
-* Add Options Page, improve UI ([7f68ced](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/7f68ced4033be7c3ff3ba58a67cbf300cd58965e))
+- Update project name and templates to Tiktok Affiliate Crawler; add mock API functionality ([e24e1a3](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/e24e1a371bdbe99f352900998078e3139d53c8f0))
 
-## [1.1.0](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.0.1...v1.1.0) (2025-02-25)
+## [1.3.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.2.1...v1.3.0) (2025-02-25)
 
 ### ✨ Features
 
-- Add API fetching for creator IDs and update UI components ([53dc561](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/53dc56141ec2c7b72f86c76c1dc15e356a4ea8b8))
+- Add Options Page, improve UI ([95de1fd](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/95de1fd5010cd1192fa95c3bb92c468a03b6930e))
 
-## [1.0.1](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/compare/v1.0.0...v1.0.1) (2025-02-24)
+## [1.2.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.2.0...v1.2.1) (2025-02-25)
+
+## [1.2.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.1.1...v1.2.0) (2025-02-24)
+
+### ✨ Features
+
+- Add API fetching for creator IDs, flatten response data ([25656de](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/25656dee0332620a2735154ed1931cf6581eadfd))
+
+## [1.1.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.1.0...v1.1.1) (2025-02-24)
 
 ### 🐛 Bug Fixes
 
-- Ensure all promises complete ([c4f8263](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/c4f8263595a14d6e67eda728f3f5b6697fe02c0c))
+- Ensure all promises complete ([d889317](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/d8893176ba4f35c2432c9c400991b779929680b9))
+
+## [1.1.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.0.0...v1.1.0) (2025-02-23)
+
+### ✨ Features
+
+- Improve crawling, UI, and storage management ([b92c55c](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/b92c55ce8502ff074dc25076af56306129c3165a))
 
 ## 1.0.0 (2025-02-23)
 
 ### ✨ Features
 
-- Integrate semantic-release and enhance crawler functionality ([b8935ed](https://github.com/True-Digital-Vietnam/adu-affiliate-tiktok-crawler/commit/b8935ed162b25207d30df874b5ea9a525f89da1b))
+- Crawl Tiktok Affiliate Creator ([c8b9d2a](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/c8b9d2a151b1f36c0dc0d1ac261637cfe75cf316))
