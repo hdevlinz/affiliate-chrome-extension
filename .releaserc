@@ -99,7 +99,7 @@
           },
           {
             "path": "public.zip",
-            "label": "Tiktok-Affiliate-Assets-v${nextRelease.version}"
+            "label": "Tiktok-Assets-v${nextRelease.version}"
           }
         ],
         "successComment": false,

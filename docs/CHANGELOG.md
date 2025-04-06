@@ -1,14 +1,42 @@
+## [1.6.4](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.3...v1.6.4) (2025-04-01)
+
+### 🛠 Miscellaneous Chores
+
+* remove mock api ([e5e52cd](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/e5e52cd577c6f6ce9bbc94d5720025b05a743cb0))
+
+## [1.6.3](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.2...v1.6.3) (2025-04-01)
+
+### 🛠 Miscellaneous Chores
+
+* remove ADU keyword and update title to Tiktok Affiliate Crawler ([0503765](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/0503765afc547be91e5fd299651dcbb04541b75e))
+
+## [1.6.2](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.1...v1.6.2) (2025-04-01)
+
+## [1.6.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.0...v1.6.1) (2025-04-01)
+
+## [1.6.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.5.0...v1.6.0) (2025-04-01)
+
+### ✨ Features
+
+- auto fetch creator ids and start crawler ([8ffa1cb](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/8ffa1cb0ce7ce50abad70592442f94fe6131892a))
+
+## [1.5.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.4.0...v1.5.0) (2025-03-26)
+
+### ✨ Features
+
+- Enhance Chrome Extension ([f2474d9](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/f2474d9ff535d4fb9967536d1cbd0ce1ce0aa53b))
+
 ## [1.4.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.3.0...v1.4.0) (2025-03-07)
 
 ### ✨ Features
 
-* Update project name and templates to Tiktok Affiliate Crawler; add mock API functionality ([e24e1a3](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/e24e1a371bdbe99f352900998078e3139d53c8f0))
+- Update project name and templates to Tiktok Affiliate Crawler; add mock API functionality ([e24e1a3](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/e24e1a371bdbe99f352900998078e3139d53c8f0))
 
 ## [1.3.0](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.2.1...v1.3.0) (2025-02-25)
 
 ### ✨ Features
 
-* Add Options Page, improve UI ([95de1fd](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/95de1fd5010cd1192fa95c3bb92c468a03b6930e))
+- Add Options Page, improve UI ([95de1fd](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/95de1fd5010cd1192fa95c3bb92c468a03b6930e))
 
 ## [1.2.1](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.2.0...v1.2.1) (2025-02-25)
 

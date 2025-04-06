@@ -24,15 +24,18 @@ XHR.send = function (postData) {
       const requestHeaders = getHeaders(self.getAllResponseHeaders())
       const responsePayload = JSON.parse(self.responseText)
 
-      sendData({
-        url: url,
-        method: self.requestMethod,
-        query: queryParams,
-        status: self.status,
-        requestHeaders: requestHeaders,
-        requestPayload: postData,
-        responsePayload: responsePayload
-      })
+      // Only send the first page of the response
+      if (responsePayload && responsePayload.next_pagination && responsePayload.next_pagination.next_page === 1) {
+        sendData({
+          url: url,
+          method: self.requestMethod,
+          query: queryParams,
+          status: self.status,
+          requestHeaders: requestHeaders,
+          requestPayload: postData,
+          responsePayload: responsePayload
+        })
+      }
     } catch (error) {
       console.error(`error intercepting XHR: ${error}`)
     }
@@ -58,15 +61,18 @@ window.fetch = async function (...args) {
     const queryParams = getQueryParams(url)
     const responsePayload = await clone.json()
 
-    sendData({
-      url: url,
-      method: config?.method || 'GET',
-      query: queryParams,
-      status: response.status,
-      requestHeaders: config?.headers,
-      requestPayload: config?.body,
-      responsePayload: responsePayload
-    })
+    // Only send the first page of the response
+    if (responsePayload && responsePayload.next_pagination && responsePayload.next_pagination.next_page === 1) {
+      sendData({
+        url: url,
+        method: config?.method || 'GET',
+        query: queryParams,
+        status: response.status,
+        requestHeaders: config?.headers,
+        requestPayload: config?.body,
+        responsePayload: responsePayload
+      })
+    }
 
     return response
   } catch (error) {

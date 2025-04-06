@@ -1,32 +1,56 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaCog, FaFileExport, FaFileUpload, FaPlay, FaStop, FaSync } from 'react-icons/fa'
+import {
+  FaCog,
+  FaFileDownload,
+  FaFileUpload,
+  FaPause,
+  FaPlay,
+  FaSpinner,
+  FaStepForward,
+  FaStop,
+  FaSyncAlt,
+  FaTrashAlt
+} from 'react-icons/fa'
 import { ActionType } from '../types/enums'
 import { isEmpty, isEmptyArray, isNullOrUndefined } from '../utils/checks'
 import { formatSeconds, getFormattedDate } from '../utils/formatters'
 import { exportFile } from '../utils/helpers'
 import { logger } from '../utils/logger'
 import { swal } from '../utils/swal'
-import './SidePanel.css'
+import './SidePanel.scss'
 
 export const SidePanel = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const autoCrawlIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const [creatorIds, setCreatorIds] = useState<string[]>([])
+  const [notFoundCreators, setNotFoundCreators] = useState<string[]>([])
+  const [processCount, setProcessCount] = useState(0)
+  const [crawledCount, setCrawledCount] = useState(0)
+  const [crawlProgress, setCrawlProgress] = useState(0)
+  const [crawlDuration, setCrawlDuration] = useState<string | null>(null)
+  const [crawlIntervalDuration, setCrawlIntervalDuration] = useState<number>(120)
   const [useApi, setUseApi] = useState(false)
   const [isCrawling, setIsCrawling] = useState(false)
   const [canContinue, setCanContinue] = useState(false)
-  const [crawlProgress, setCrawlProgress] = useState(0)
-  const [crawledCount, setCrawledCount] = useState(0)
-  const [crawlDuration, setCrawlDuration] = useState<string | null>(null)
-  const [creatorIds, setCreatorIds] = useState<string[]>([])
-  const [notFoundCreators, setNotFoundCreators] = useState<string[]>([])
+  const [isAutoCrawling, setIsAutoCrawling] = useState(false)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (isNullOrUndefined(file)) return swal.error('File Error', 'No file selected.')
+    if (isNullOrUndefined(file)) {
+      swal.error('File Error', 'No file selected.')
+
+      return
+    }
 
     const reader = new FileReader()
     reader.onload = (e) => {
       const fileContent = e.target?.result as string | undefined
-      if (typeof fileContent !== 'string') return swal.error('File Error', 'Failed to read file content.')
+      if (typeof fileContent !== 'string') {
+        swal.error('File Error', 'Failed to read file content.')
+
+        return
+      }
 
       const ids = fileContent
         .trim()
@@ -38,30 +62,22 @@ export const SidePanel = () => {
     }
     reader.onerror = () => swal.error('File Error', 'An error occurred while reading the file.')
     reader.readAsText(file)
+
+    if (event.target) {
+      event.target.value = ''
+    }
   }
 
   const handleOpenOptionsPage = () => {
-    if (chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage()
-    else window.open(chrome.runtime.getURL('templates/options.html'))
+    if (chrome.runtime.openOptionsPage) {
+      chrome.runtime.openOptionsPage()
+    } else {
+      window.open(chrome.runtime.getURL('templates/options.html'))
+    }
   }
 
-  const handleStartCrawl = async () => {
-    const validIds = creatorIds.filter(Boolean)
-    if (isEmptyArray(validIds)) return swal.error('Crawl Error', 'Please enter or upload creator IDs before starting.')
-
-    chrome.storage.local.get(['crawledCreators'], async ({ crawledCreators }) => {
-      if (isNullOrUndefined(crawledCreators) || isEmptyArray(crawledCreators)) return startCrawl(validIds)
-
-      return swal
-        .warning(
-          'Warning',
-          'Starting a new crawl will clear all previously crawled data. Are you sure you want to proceed?'
-        )
-        .then((result) => result.isConfirmed && startCrawl(validIds))
-    })
-  }
-
-  const startCrawl = (validIds: string[]) => {
+  const startCrawl = async (validIds: string[]) => {
+    logger.info('Starting crawl with IDs:', validIds)
     setIsCrawling(true)
     setCanContinue(false)
     setCrawlProgress(0)
@@ -69,243 +85,524 @@ export const SidePanel = () => {
     setCrawlDuration(null)
     setNotFoundCreators([])
 
-    chrome.storage.local.remove(
-      ['processCount', 'crawlDurationSeconds', 'crawledCreators', 'notFoundCreators', 'currentCreatorIndex'],
-      () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-          if (isNullOrUndefined(tabs[0].id)) return setIsCrawling(false)
+    await chrome.storage.local.remove([
+      'processCount',
+      'crawlDurationSeconds',
+      'crawledCreators',
+      'notFoundCreators',
+      'currentCreatorIndex'
+    ])
 
-          await chrome.storage.local.set({ isCrawling: true, creatorIds: validIds })
-          await chrome.tabs.sendMessage(tabs[0].id, {
-            action: ActionType.START_CRAWLING,
-            useApi,
-            startTime: Date.now(),
-            creatorIds: validIds
-          })
-        })
-      }
-    )
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (isNullOrUndefined(tabs[0]?.id)) {
+      await chrome.storage.local.set({ isCrawling: false })
+      setIsCrawling(false)
+
+      logger.error('No active tab found to start crawl.')
+      swal.error('Tab Error', 'Could not find the active tab to start crawling.')
+
+      return
+    }
+
+    try {
+      await chrome.tabs.sendMessage(tabs[0].id, {
+        action: ActionType.START_CRAWLING,
+        useApi,
+        startTime: Date.now(),
+        creatorIds: validIds
+      })
+      logger.info('START_CRAWLING message sent successfully.')
+    } catch (error) {
+      await chrome.storage.local.set({ isCrawling: false })
+      setIsCrawling(false)
+
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Error sending START_CRAWLING message:', error)
+      swal.error(
+        'Communication Error',
+        `Failed to communicate with the content script. Ensure you are on a TikTok page and try refreshing the extension/page. Error: ${errorMessage}`
+      )
+    }
   }
 
-  const handleContinueCrawl = () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-      if (isNullOrUndefined(tabs[0].id)) return
+  const handleStartCrawl = async () => {
+    const validIds = creatorIds.map((id) => id.trim()).filter(Boolean)
+    if (isEmptyArray(validIds)) {
+      swal.error('Crawl Error', 'Please enter or upload creator IDs before starting.')
 
-      setIsCrawling(true)
-      setCanContinue(false)
+      return
+    }
 
-      await chrome.storage.local.set({ isCrawling: true })
+    const { crawledCreators } = await chrome.storage.local.get(['crawledCreators'])
+    if (isNullOrUndefined(crawledCreators) || isEmptyArray(crawledCreators)) {
+      logger.info('No previous data found. Starting new crawl.')
+      startCrawl(validIds)
+
+      return
+    }
+
+    logger.warn('Previous crawl data detected. Asking for confirmation.')
+    swal
+      .warning(
+        'Warning',
+        'Starting a new crawl will clear all previously crawled data. Are you sure you want to proceed?'
+      )
+      .then((result) => {
+        if (!result.isConfirmed) {
+          return
+        }
+
+        logger.info('User confirmed overwrite. Starting new crawl.')
+        startCrawl(validIds)
+      })
+  }
+
+  const handleContinueCrawl = async () => {
+    logger.info('Attempting to continue crawl.')
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (isNullOrUndefined(tabs[0]?.id)) {
+      logger.error('No active tab found to continue crawl.')
+      swal.error('Tab Error', 'Could not find the active tab to continue crawling.')
+
+      return
+    }
+
+    setIsCrawling(true)
+    setCanContinue(false)
+
+    await chrome.storage.local.set({ isCrawling: true })
+    try {
       await chrome.tabs.sendMessage(tabs[0].id, { action: ActionType.CONTINUE_CRAWLING })
-    })
-  }
-
-  const handleStopCrawl = () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-      if (isNullOrUndefined(tabs[0].id)) return
-
+      logger.info('CONTINUE_CRAWLING message sent successfully.')
+    } catch (error) {
+      await chrome.storage.local.set({ isCrawling: false })
       setIsCrawling(false)
       setCanContinue(true)
 
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Error sending CONTINUE_CRAWLING message:', error)
+      swal.error('Communication Error', `Failed to communicate with the content script. Error: ${errorMessage}`)
+    }
+  }
+
+  const handleStopCrawl = async () => {
+    logger.info('Attempting to stop crawl.')
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (isNullOrUndefined(tabs[0]?.id)) {
       await chrome.storage.local.set({ isCrawling: false })
+      const { currentCreatorIndex: currentIdxBeforeStop, creatorIds: storedIdsBeforeStop } =
+        await chrome.storage.local.get(['currentCreatorIndex', 'creatorIds'])
+      const totalCountBeforeStop = storedIdsBeforeStop?.length ?? 0
+      const canStillContinueBeforeStop =
+        !isNullOrUndefined(currentIdxBeforeStop) && currentIdxBeforeStop < totalCountBeforeStop
+      setIsCrawling(false)
+      setCanContinue(canStillContinueBeforeStop)
+
+      logger.warn('No active tab found to send STOP_CRAWLING message, stopping locally.')
+      swal.error('Tab Error', 'Could not find the active tab to stop crawling.')
+
+      return
+    }
+
+    setIsCrawling(false)
+    const { currentCreatorIndex, creatorIds: storedIds } = await chrome.storage.local.get([
+      'currentCreatorIndex',
+      'creatorIds'
+    ])
+    const totalCount = storedIds?.length ?? 0
+    const canStillContinue = !isNullOrUndefined(currentCreatorIndex) && currentCreatorIndex < totalCount
+    setCanContinue(canStillContinue)
+
+    await chrome.storage.local.set({ isCrawling: false })
+    try {
       await chrome.tabs.sendMessage(tabs[0].id, { action: ActionType.STOP_CRAWLING })
-    })
+      logger.info('STOP_CRAWLING message sent successfully.')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Error sending STOP_CRAWLING message:', error)
+      swal.error(
+        'Communication Error',
+        `Failed to send stop signal to the content script, but crawl stopped locally. Error: ${errorMessage}`
+      )
+    }
   }
 
   const handleResetCrawl = async () => {
-    return swal
+    logger.warn('Reset crawl requested. Asking for confirmation.')
+    swal
       .warning(
         'Warning',
         'Resetting the crawl will clear all crawled data and stop the current process. Are you sure you want to proceed?'
       )
-      .then((result) => {
-        if (result.isConfirmed) {
-          setUseApi(false)
-          setIsCrawling(false)
-          setCanContinue(false)
-          setCrawlProgress(0)
-          setCrawledCount(0)
-          setCrawlDuration(null)
-          setCreatorIds([])
-          setNotFoundCreators([])
+      .then(async (result) => {
+        if (!result.isConfirmed) {
+          return
+        }
 
-          chrome.storage.local.remove(
-            [
-              'useApi',
-              'isCrawling',
-              'processCount',
-              'crawlDurationSeconds',
-              'creatorIds',
-              'crawledCreators',
-              'notFoundCreators',
-              'currentCreatorIndex'
-            ],
-            () => {
-              chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-                if (isNullOrUndefined(tabs[0].id)) return
+        logger.info('User confirmed reset.')
+        if (isAutoCrawling) {
+          setIsAutoCrawling(false)
+          if (autoCrawlIntervalRef.current) {
+            clearInterval(autoCrawlIntervalRef.current)
+            autoCrawlIntervalRef.current = null
+          }
+        }
 
-                await chrome.tabs.sendMessage(tabs[0].id, { action: ActionType.RESET_CRAWLING })
-                swal.success('Crawl Reset', 'The crawl has been reset successfully.')
-              })
-            }
+        setUseApi(false)
+        setIsCrawling(false)
+        setCanContinue(false)
+        setCrawlProgress(0)
+        setCrawledCount(0)
+        setCrawlDuration(null)
+        setCreatorIds([])
+        setNotFoundCreators([])
+
+        await chrome.storage.local.remove([
+          'useApi',
+          'isCrawling',
+          'processCount',
+          'crawlDurationSeconds',
+          'creatorIds',
+          'crawledCreators',
+          'notFoundCreators',
+          'currentCreatorIndex'
+        ])
+        logger.info('Local storage cleared for crawl data.')
+
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (isNullOrUndefined(tabs[0]?.id)) {
+          logger.warn('No active tab found to send RESET_CRAWLING message, resetting locally.')
+          await swal.success('Crawl Reset', 'The crawl has been reset successfully.')
+
+          return
+        }
+
+        try {
+          await chrome.tabs.sendMessage(tabs[0].id, { action: ActionType.RESET_CRAWLING })
+          logger.info('RESET_CRAWLING message sent successfully.')
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logger.error('Error sending RESET_CRAWLING message:', error)
+          swal.error(
+            'Communication Error',
+            `Failed to send reset signal to the content script, but crawl data reset locally. Error: ${errorMessage}`
           )
         }
+
+        await swal.success('Crawl Reset', 'The crawl has been reset successfully.')
       })
   }
 
-  const handleExportCrawledCreators = () => {
-    chrome.storage.local.get(['crawledCreators'], ({ crawledCreators }) => {
-      if (isEmptyArray(crawledCreators)) return swal.error('Export Error', 'No data to export.')
+  const handleExportCrawledCreators = async () => {
+    const { crawledCreators } = await chrome.storage.local.get(['crawledCreators'])
+    if (isEmptyArray(crawledCreators)) {
+      swal.error('Export Error', 'No data to export.')
 
-      const data = JSON.stringify(crawledCreators, null, 2)
-      const filename = `tiktok_crawled_creators_${getFormattedDate()}.json`
-      exportFile(data, filename, 'application/json')
-    })
+      return
+    }
+
+    logger.info(`Exporting ${crawledCreators.length} crawled creators.`)
+    const data = JSON.stringify(crawledCreators, null, 2)
+    const filename = `tiktok_crawled_creators_${getFormattedDate()}.json`
+    exportFile(data, filename, 'application/json')
   }
 
-  const handleExportNotFoundCreators = () => {
-    if (isEmptyArray(notFoundCreators)) return swal.error('Export Error', 'No data to export.')
+  const handleExportNotFoundCreators = async () => {
+    if (isEmptyArray(notFoundCreators)) {
+      swal.error('Export Error', 'No data to export.')
 
+      return
+    }
+
+    logger.info(`Exporting ${notFoundCreators.length} not found creators.`)
     const data = notFoundCreators.join('\n')
     const filename = `tiktok_not_found_creators_${getFormattedDate()}.txt`
     exportFile(data, filename, 'text/plain')
   }
 
-  const handleFetchAPI = async () => {
-    chrome.storage.sync.get(null, async (syncResult) => {
-      if (isEmpty(syncResult.mdCreatorIdsUrl)) {
-        return swal.error('API Error', 'Get Creator IDs URL is not set.').then(() => setUseApi(false))
+  const handleFetchAPI = async (): Promise<string[] | undefined> => {
+    const syncResult = await chrome.storage.sync.get(['creatorIdsEndpoint', 'apiKeyFormat', 'apiKeyValue'])
+    if (isEmpty(syncResult.creatorIdsEndpoint)) {
+      logger.error('API Error: Get Creator IDs URL is not set.')
+      swal.error('API Error', 'Get Creator IDs URL is not set in settings.').then(() => setUseApi(false))
+
+      return undefined
+    }
+
+    swal.info('Fetching Creator IDs', 'Please wait...', {
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      allowEscapeKey: false
+    })
+
+    try {
+      logger.info(`Fetching creator IDs from: ${syncResult.creatorIdsEndpoint}`)
+      const headers: HeadersInit = {}
+      if (syncResult.mdApiKeyFormat && syncResult.mdApiKeyValue) {
+        headers[syncResult.mdApiKeyFormat] = syncResult.mdApiKeyValue
+        logger.info('Using API Key for fetch.')
       }
 
-      swal.info('Fetching Creator IDs', 'Please wait...', {
-        showConfirmButton: false,
-        allowOutsideClick: false,
-        allowEscapeKey: false
+      const response = await fetch(syncResult.creatorIdsEndpoint, {
+        method: 'GET',
+        headers: headers
       })
 
-      const headers =
-        syncResult.mdApiKeyFormat && syncResult.mdApiKeyValue
-          ? {
-              [syncResult.mdApiKeyFormat]: syncResult.mdApiKeyValue
-            }
-          : {}
+      if (!response.ok) {
+        setUseApi(false)
 
-      try {
-        const response = await fetch(syncResult.mdCreatorIdsUrl, {
-          method: 'GET',
-          headers
-        })
+        const errorText = await response.text()
+        logger.error(`API Error ${response.status}: Failed to fetch creator IDs. Response: ${errorText}`)
+        swal.error('API Error', `Failed to fetch creator IDs. Status: ${response.status}. Check console for details.`)
 
-        if (!response.ok) {
-          return swal.error('API Error', 'Failed to fetch creator IDs from the API.').then(() => setUseApi(false))
-        }
-
-        const jsonData = await response.json()
-        if (isEmptyArray(jsonData)) {
-          return swal.error('API Error', 'No creator IDs were fetched from the API.').then(() => setUseApi(false))
-        }
-
-        const extractedCreatorIds = jsonData.map((creator: any) => creator.id)
-        setCreatorIds(extractedCreatorIds)
-        swal.success('Creator IDs Fetched', `Successfully fetched ${extractedCreatorIds.length} creator IDs.`)
-      } catch (error) {
-        logger.error('Error fetching creator IDs:', error)
-        swal
-          .error('API Error', 'An error occurred while trying to fetch creator IDs from the API.')
-          .then(() => setUseApi(false))
+        return undefined
       }
-    })
+
+      const jsonData = await response.json()
+      if (!Array.isArray(jsonData)) {
+        setUseApi(false)
+
+        logger.error('API Error: Response is not a JSON array.')
+        swal.error('API Error', 'Invalid data format received from API (expected an array).')
+
+        return undefined
+      }
+
+      const extractedCreatorIds = jsonData
+        .map((creator: any) => creator?.id)
+        .filter((id): id is string => typeof id === 'string' && id.trim() !== '')
+
+      if (isEmptyArray(extractedCreatorIds)) {
+        setUseApi(false)
+
+        logger.warn('API Warning: No valid creator IDs found in the API response.')
+        swal.error('API Error', 'No valid creator IDs were found in the API response.')
+
+        return undefined
+      }
+
+      await chrome.storage.local.set({ creatorIds: extractedCreatorIds })
+      setCreatorIds(extractedCreatorIds)
+
+      logger.info(`Fetched ${extractedCreatorIds.length} creator IDs.`)
+      swal.success('Creator IDs Fetched', `Successfully fetched ${extractedCreatorIds.length} creator IDs.`)
+
+      return extractedCreatorIds
+    } catch (error: any) {
+      setUseApi(false)
+
+      logger.error('Error fetching creator IDs:', error)
+      swal.error('API Error', `An error occurred while trying to fetch creator IDs: ${error.message}`)
+
+      return undefined
+    }
+  }
+
+  const performAutoCrawlCycle = async () => {
+    const { isCrawling: currentlyCrawling } = await chrome.storage.local.get(['isCrawling'])
+    if (currentlyCrawling) {
+      logger.info('Auto-crawl cycle skipped: A crawl is already in progress.')
+
+      return
+    }
+
+    logger.info('Performing auto-crawl cycle: Fetching IDs...')
+
+    const fetchedIds = await handleFetchAPI()
+    if (isNullOrUndefined(fetchedIds) || isEmptyArray(fetchedIds)) {
+      setIsAutoCrawling(false)
+      logger.warn('Auto-crawl cycle: Failed to fetch or no IDs returned from API. Stopping auto-crawl.')
+
+      return
+    }
+
+    const validIds = fetchedIds.map((id: string) => id.trim()).filter(Boolean)
+    if (isEmptyArray(validIds)) {
+      logger.warn('Auto-crawl cycle: No valid IDs after filtering fetched data. Stopping auto-crawl.')
+      setIsAutoCrawling(false)
+
+      return
+    }
+
+    logger.info('Auto-crawl cycle: Starting crawl with fetched IDs.')
+    await startCrawl(validIds)
   }
 
   useEffect(() => {
-    chrome.storage.local.set({ useApi })
+    const initializeState = async () => {
+      logger.debug('Initializing component state from storage.')
+      const localResult = await chrome.storage.local.get(null)
+      const syncResult = await chrome.storage.sync.get(['crawlIntervalDuration'])
 
-    if (useApi) handleFetchAPI()
-  }, [useApi])
+      const storedCreatorIds = localResult.creatorIds || []
+      const totalCreatorIdsCount = storedCreatorIds.length
+      const currentIdx = localResult.currentCreatorIndex
+      const processCnt = localResult.processCount ?? 0
+      const crawledCreatorsCount = localResult.crawledCreators?.length ?? 0
 
-  useEffect(() => {
-    chrome.storage.local.get(null, (localResult) => {
-      const totalCreatorIdsCount = isEmptyArray(localResult.creatorIds) ? 0 : localResult.creatorIds.length
-      const storedCanContinue =
-        !!!localResult.isCrawling &&
-        !isNullOrUndefined(localResult.currentCreatorIndex) &&
-        localResult.currentCreatorIndex < totalCreatorIdsCount
-      const crawledCreatorsCount = isEmptyArray(localResult.crawledCreators) ? 0 : localResult.crawledCreators.length
-      const calculatedProgress =
-        totalCreatorIdsCount > 0 && !isNullOrUndefined(localResult.processCount)
-          ? Math.round((localResult.processCount / totalCreatorIdsCount) * 100)
-          : 0
+      const initialIsCrawling = !!localResult.isCrawling
+      const initialCanContinue =
+        !initialIsCrawling &&
+        !isNullOrUndefined(currentIdx) &&
+        currentIdx < totalCreatorIdsCount &&
+        totalCreatorIdsCount > 0
+      const initialProgress = totalCreatorIdsCount > 0 ? Math.round((processCnt / totalCreatorIdsCount) * 100) : 0
+      const initialNotFound = localResult.notFoundCreators || []
 
       setUseApi(!!localResult.useApi)
-      setIsCrawling(!!localResult.isCrawling)
-      setCanContinue(storedCanContinue)
-      setCrawlProgress(calculatedProgress)
+      setIsCrawling(initialIsCrawling)
+      setCanContinue(initialCanContinue)
+      setCrawlProgress(initialProgress)
+      setProcessCount(processCnt)
       setCrawledCount(crawledCreatorsCount)
       setCrawlDuration(formatSeconds(localResult.crawlDurationSeconds))
-      setCreatorIds(localResult.creatorIds || [])
-      setNotFoundCreators(localResult.notFoundCreators || [])
-    })
+      setCreatorIds(storedCreatorIds)
+      setNotFoundCreators(initialNotFound)
+      setCrawlIntervalDuration(syncResult.crawlIntervalDuration || 120)
 
-    const updateStateFromStorage = (
+      logger.debug('Initial state set:', {
+        useApi: !!localResult.useApi,
+        isCrawling: initialIsCrawling,
+        canContinue: initialCanContinue,
+        progress: initialProgress,
+        crawledCount: crawledCreatorsCount,
+        duration: formatSeconds(localResult.crawlDurationSeconds),
+        idsCount: totalCreatorIdsCount,
+        notFoundCount: initialNotFound.length,
+        intervalDuration: syncResult.crawlIntervalDuration || 120
+      })
+    }
+
+    initializeState()
+
+    const handleStorageChange = (
       changes: { [key: string]: chrome.storage.StorageChange },
       areaName: chrome.storage.AreaName
     ) => {
+      logger.debug(`Storage changed in area: ${areaName}`, changes)
       if (areaName === 'local') {
-        chrome.storage.local.get(null, (localResult) => {
-          const totalCreatorIdsCount = isEmptyArray(localResult.creatorIds) ? 0 : localResult.creatorIds.length
+        if (changes.useApi) setUseApi(!!changes.useApi.newValue)
+        if (changes.isCrawling) setIsCrawling(!!changes.isCrawling.newValue)
+        if (changes.creatorIds) setCreatorIds(changes.creatorIds.newValue || [])
+        if (changes.crawledCreators) setCrawledCount((changes.crawledCreators.newValue || []).length)
+        if (changes.notFoundCreators) setNotFoundCreators(changes.notFoundCreators.newValue || [])
+        if (changes.crawlDurationSeconds) setCrawlDuration(formatSeconds(changes.crawlDurationSeconds.newValue))
 
-          if (changes.useApi) setUseApi(!!localResult.useApi)
+        chrome.storage.local
+          .get(['isCrawling', 'creatorIds', 'currentCreatorIndex', 'processCount'])
+          .then((localResult) => {
+            const currentIsCrawling = !!localResult.isCrawling
+            const currentIds = localResult.creatorIds || []
+            const totalCount = currentIds.length
+            const currentIdx = localResult.currentCreatorIndex
+            const processCnt = localResult.processCount ?? 0
 
-          if (changes.isCrawling) setIsCrawling(!!localResult.isCrawling)
+            setProcessCount(processCnt)
 
-          if (changes.currentCreatorIndex) {
-            const storedCanContinue =
-              !!!localResult.isCrawling &&
-              !isNullOrUndefined(localResult.currentCreatorIndex) &&
-              localResult.currentCreatorIndex < totalCreatorIdsCount
-            setCanContinue(storedCanContinue)
-          }
+            const updatedCanContinue =
+              !currentIsCrawling && !isNullOrUndefined(currentIdx) && currentIdx < totalCount && totalCount > 0
+            setCanContinue(updatedCanContinue)
 
-          if (changes.processCount) {
-            const calculatedProgress =
-              totalCreatorIdsCount > 0 && !isNullOrUndefined(localResult.processCount)
-                ? Math.round((localResult.processCount / totalCreatorIdsCount) * 100)
-                : 0
+            const calculatedProgress = totalCount > 0 ? Math.round((processCnt / totalCount) * 100) : 0
             setCrawlProgress(calculatedProgress)
-          }
 
-          if (changes.crawledCreators) {
-            setCrawledCount(isEmptyArray(localResult.crawledCreators) ? 0 : localResult.crawledCreators.length)
-          }
-
-          if (changes.crawlDurationSeconds) setCrawlDuration(formatSeconds(localResult.crawlDurationSeconds))
-
-          if (changes.creatorIds) setCreatorIds(localResult.creatorIds || [])
-
-          if (changes.notFoundCreators) setNotFoundCreators(localResult.notFoundCreators || [])
-        })
+            logger.debug('Local storage change applied to state (recalculated).')
+          })
+      } else if (areaName === 'sync' && changes.crawlIntervalDuration) {
+        const newInterval = changes.crawlIntervalDuration.newValue || 120
+        setCrawlIntervalDuration(newInterval)
+        logger.info(`Crawl interval duration updated from sync storage: ${newInterval} seconds.`)
       }
     }
 
-    chrome.storage.onChanged.addListener(updateStateFromStorage)
+    chrome.storage.onChanged.addListener(handleStorageChange)
 
-    return () => chrome.storage.onChanged.removeListener(updateStateFromStorage)
+    return () => {
+      logger.debug('Removing storage change listener.')
+      chrome.storage.onChanged.removeListener(handleStorageChange)
+      if (autoCrawlIntervalRef.current) {
+        clearInterval(autoCrawlIntervalRef.current)
+        autoCrawlIntervalRef.current = null
+        logger.info('Cleared auto-crawl interval on unmount.')
+      }
+    }
   }, [])
 
+  useEffect(() => {
+    chrome.storage.local.set({ useApi })
+    if (useApi && !isCrawling && !isAutoCrawling) {
+      logger.info('useApi toggled on. Fetching IDs...')
+      handleFetchAPI()
+    } else if (!useApi) {
+      logger.info('useApi toggled off.')
+    }
+  }, [useApi])
+
+  useEffect(() => {
+    const clearExistingInterval = () => {
+      if (autoCrawlIntervalRef.current) {
+        clearInterval(autoCrawlIntervalRef.current)
+        logger.info('Cleared existing auto-crawl interval.')
+        autoCrawlIntervalRef.current = null
+      }
+    }
+
+    if (isAutoCrawling) {
+      if (!useApi) {
+        logger.warn("Auto-crawling started but 'Use API' is not enabled. Enabling it.")
+        setUseApi(true) // The `useApi` effect will trigger the initial fetch
+      } else {
+        // If API is already enabled, perform the first cycle immediately
+        logger.info(`Starting auto-crawl interval. Duration: ${crawlIntervalDuration} seconds.`)
+        clearExistingInterval()
+        performAutoCrawlCycle()
+        autoCrawlIntervalRef.current = setInterval(performAutoCrawlCycle, crawlIntervalDuration * 1000)
+      }
+    } else {
+      logger.info('Stopping auto-crawl interval.')
+      clearExistingInterval()
+    }
+
+    // Cleanup function to clear interval when isAutoCrawling becomes false or component unmounts
+    return clearExistingInterval
+  }, [isAutoCrawling, crawlIntervalDuration, useApi])
+
+  const handleToggleAutoCrawl = () => {
+    setIsAutoCrawling((prev) => {
+      const newState = !prev
+      if (newState) {
+        swal.info('Auto Crawl Started', 'The auto crawl cycle will now run periodically.')
+        logger.info('User started auto-crawling.')
+      } else {
+        swal.info('Auto Crawl Stopped', 'The auto crawl cycle has been stopped.')
+        logger.info('User stopped auto-crawling.')
+      }
+      return newState
+    })
+  }
+
+  const isDisabled = isCrawling || isAutoCrawling
+  const totalIds = creatorIds.filter(Boolean).length
+  const hasCrawledData = crawledCount > 0
+  const hasNotFoundData = !isEmptyArray(notFoundCreators)
+
   return (
-    <main className="side-panel-container">
-      <h3 className="title">TikTok Creator Data Crawler</h3>
-      <div className="input-area">
-        <label htmlFor="creatorIds" className="input-label">
-          Creator IDs:
-          <div className="input-actions">
+    <main className="side-panel">
+      <h3 className="panel-title">TikTok Creator Data Crawler</h3>
+
+      {/* Input Area */}
+      <div className="panel-input">
+        <label htmlFor="creatorIds" className="panel-input__label">
+          Creator IDs ({totalIds}):
+          <div className="panel-input__actions">
             <button
-              className={`icon-button ${isCrawling ? 'disabled' : ''}`}
-              disabled={isCrawling}
+              className={`icon-button ${isDisabled ? 'icon-button--disabled' : ''}`}
+              disabled={isDisabled}
               title="Upload a text file (.txt) with creator IDs (one ID per line)"
               type="button"
               onClick={() => fileInputRef.current?.click()}
             >
-              <FaFileUpload className={`${isCrawling ? 'disabled' : ''}`} />
+              <FaFileUpload />
             </button>
             <button className="icon-button" title="Open Options Page" type="button" onClick={handleOpenOptionsPage}>
               <FaCog />
@@ -313,17 +610,23 @@ export const SidePanel = () => {
           </div>
         </label>
         <textarea
-          className={`creator-ids-textarea ${isCrawling ? 'disabled' : ''}`}
+          className={`panel-input__textarea ${isDisabled ? 'disabled' : ''}`}
           id="creatorIds"
-          disabled={isCrawling}
+          disabled={isDisabled}
           value={creatorIds.join('\n')}
-          placeholder="Enter creator IDs, each on a new line"
-          onChange={(e) => setCreatorIds(e.target.value.split('\n'))}
+          placeholder="Enter creator IDs, each on a new line, or use 'Upload File' / 'Use API'."
+          onChange={(e) => {
+            const newIds = e.target.value.split('\n')
+            setCreatorIds(newIds)
+            if (!useApi) {
+              chrome.storage.local.set({ creatorIds: newIds })
+            }
+          }}
         />
         <input
           ref={fileInputRef}
           id="fileInput"
-          disabled={isCrawling}
+          disabled={isDisabled}
           type="file"
           accept=".txt"
           style={{ display: 'none' }}
@@ -331,97 +634,148 @@ export const SidePanel = () => {
         />
       </div>
 
-      <div className="button-area">
-        <div className="start-button-container">
+      {/* Button Area */}
+      <div className="panel-buttons">
+        {/* Toggle Auto Crawl */}
+        <button className={`button`} onClick={handleToggleAutoCrawl}>
+          {isAutoCrawling ? (
+            <>
+              Stop Auto Crawl <FaStop />
+            </>
+          ) : (
+            <>
+              Start Auto Crawl <FaSyncAlt />
+            </>
+          )}
+        </button>
+        {isAutoCrawling && (
+          <div className="auto-crawl-loading">
+            Auto Crawling Active <FaSpinner className="spinner" />
+          </div>
+        )}
+
+        {/* Start Manual Crawl */}
+        <div className="start-group">
           <button
-            className={`button start-button ${isCrawling || canContinue ? 'disabled' : ''}`}
-            disabled={isCrawling || canContinue}
+            className={`button ${isCrawling || canContinue || isAutoCrawling || totalIds === 0 ? 'button--disabled' : ''}`}
+            disabled={isCrawling || canContinue || isAutoCrawling || totalIds === 0}
+            title={totalIds === 0 ? 'Please load Creator IDs first' : 'Start a new crawl (clears previous data)'}
             onClick={handleStartCrawl}
           >
             Start Crawling <FaPlay />
           </button>
 
-          <label className="api-checkbox">
+          <label
+            className="api-toggle"
+            title="Fetch IDs from API URL (defined in options) instead of using the text area/file upload."
+          >
             <input
               type="checkbox"
               checked={useApi}
               onChange={(e) => setUseApi(e.target.checked)}
-              disabled={isCrawling || canContinue}
+              disabled={isDisabled}
             />
             Use API
           </label>
         </div>
 
+        {/* Continue Manual Crawl */}
         <button
-          className={`button ${!canContinue ? 'disabled' : ''}`}
-          disabled={!canContinue}
+          className={`button ${!canContinue || isAutoCrawling ? 'button--disabled' : ''}`}
+          disabled={!canContinue || isAutoCrawling}
+          title={!canContinue ? 'No crawl to continue or crawl finished' : 'Continue the previously stopped crawl'}
           onClick={handleContinueCrawl}
         >
-          Continue Crawling <FaPlay />
+          Continue Crawling <FaStepForward />
         </button>
 
-        <button className={`button ${!isCrawling ? 'disabled' : ''}`} disabled={!isCrawling} onClick={handleStopCrawl}>
-          Stop Crawling <FaStop />
-        </button>
-
-        <button className={`button ${isCrawling ? 'disabled' : ''}`} disabled={isCrawling} onClick={handleResetCrawl}>
-          Reset Crawling <FaSync />
-        </button>
-
+        {/* Stop (Pause) Manual Crawl */}
         <button
-          className={`button ${isCrawling || !crawledCount ? 'disabled' : ''}`}
-          disabled={isCrawling || !crawledCount}
+          className={`button ${!isCrawling || isAutoCrawling ? 'button--disabled' : ''}`}
+          disabled={!isCrawling || isAutoCrawling}
+          title={
+            !isCrawling
+              ? 'No manual crawl is currently running'
+              : 'Stop the current manual crawl (can be continued later)'
+          }
+          onClick={handleStopCrawl}
+        >
+          Stop Crawling <FaPause />
+        </button>
+
+        {/* Reset Crawl */}
+        <button
+          className={`button ${isDisabled ? 'button--disabled' : ''}`}
+          disabled={isDisabled}
+          title="Clear all stored crawl data and reset progress"
+          onClick={handleResetCrawl}
+        >
+          Reset Crawl <FaTrashAlt />
+        </button>
+
+        {/* Export Crawled Data */}
+        <button
+          className={`button ${isDisabled || !hasCrawledData ? 'button--disabled' : ''}`}
+          disabled={isDisabled || !hasCrawledData}
+          title={!hasCrawledData ? 'No crawled data available to export' : 'Export crawled creator data as JSON'}
           onClick={handleExportCrawledCreators}
         >
-          Export Crawled Creators <FaFileExport />
+          Export Crawled ({crawledCount}) <FaFileDownload />
         </button>
+
+        {/* Export Not Found Data */}
+        {hasNotFoundData && (
+          <button
+            className={`button ${isDisabled ? 'button--disabled' : ''}`}
+            disabled={isDisabled}
+            title="Export list of creator IDs that were not found"
+            onClick={handleExportNotFoundCreators}
+          >
+            Export Not Found ({notFoundCreators.length}) <FaFileDownload />{' '}
+          </button>
+        )}
       </div>
 
-      <div className="progress-area">
-        <label htmlFor="crawler-progress" className="progress-label">
-          Crawling Progress:
-        </label>
+      {(isCrawling || crawlProgress > 0 || canContinue || hasCrawledData || hasNotFoundData) && (
+        <hr className="separator" />
+      )}
 
-        <progress id="crawler-progress" value={crawlProgress} max="100" className="progress-bar" />
+      {/* Progress Area */}
+      {(isCrawling || crawlProgress > 0 || canContinue) && (
+        <div className="panel-progress">
+          <label htmlFor="crawler-progress" className="panel-progress__label">
+            Crawling Progress:
+          </label>
+          <progress id="crawler-progress" value={crawlProgress} max="100" className="panel-progress__bar" />
+          <span className="panel-progress__percentage">{crawlProgress}%</span>
+        </div>
+      )}
 
-        <span className="progress-percentage">{crawlProgress}%</span>
-      </div>
+      {/* Status Info */}
+      {(isCrawling || crawlProgress > 0 || canContinue || hasCrawledData) && (
+        <div className="panel-status">
+          <span>
+            Processed: {processCount} / {totalIds}
+          </span>
+          {crawlDuration && <span>Duration: {crawlDuration}</span>}
+        </div>
+      )}
 
-      <span className="crawled-creators-count">
-        Crawled Creators: {crawledCount} / {creatorIds.filter(Boolean).length}
-      </span>
-
-      {crawlDuration && <span className={crawlDuration}>Crawl Duration: {crawlDuration}</span>}
-
-      {!isEmptyArray(notFoundCreators) && (
+      {/* Not Found Area */}
+      {hasNotFoundData && !isCrawling && (
         <>
-          <hr className="separator" />
-          <div className="not-found-creators-area">
-            <h4>Not Found Creator IDs</h4>
-            <table className="not-found-table">
-              <thead>
-                <tr>
-                  <th className="table-th">Creator ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {notFoundCreators.map((id, index) => (
-                  <tr key={index}>
-                    <td className="table-td">{id}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <button
-              className={`button ${isCrawling || isEmptyArray(notFoundCreators) ? 'disabled' : ''}`}
-              disabled={isCrawling || isEmptyArray(notFoundCreators)}
-              onClick={handleExportNotFoundCreators}
-            >
-              Export Not Found Creators <FaFileExport />
-            </button>
+          <div className="panel-not-found">
+            <h4 className="panel-not-found__title">Not Found IDs ({notFoundCreators.length})</h4>
+            <ul className="panel-not-found__list">
+              {notFoundCreators.map((id, index) => (
+                <li key={index}>{id}</li>
+              ))}
+            </ul>
           </div>
         </>
       )}
     </main>
   )
 }
+
+export default SidePanel

@@ -1,4 +1,4 @@
-import './DevTools.css'
+import './DevTools.scss'
 
 export const DevTools = () => {
   return (

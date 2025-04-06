@@ -1,161 +1,286 @@
 import { debounce } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
 import { swal } from '../utils/swal'
-import './Options.css'
+import './Options.scss'
 
 export const Options = () => {
-  const [mdCreatorIdsUrl, setMdCreatorIdsUrl] = useState('')
-  const [mdCreatorPostUrl, setMdCreatorPostUrl] = useState('')
-  const [mdCreatorErrorUrl, setMdCreatorErrorUrl] = useState('')
-  const [mdApiKeyFormat, setMdApiKeyFormat] = useState('')
-  const [mdApiKeyValue, setMdApiKeyValue] = useState('')
+  const [creatorIdsEndpoint, setCreatorIdsEndpoint] = useState('')
+  const [postCreatorDataEndpoint, setPostCreatorDataEndpoint] = useState('')
+  const [postCreatorErrorEndpoint, setPostCreatorErrorEndpoint] = useState('')
+  const [apiKeyFormat, setApiKeyFormat] = useState('')
+  const [apiKeyValue, setApiKeyValue] = useState('')
+  const [intervalDuration, setIntervalDuration] = useState('')
+  const [intervalUnit, setIntervalUnit] = useState('seconds')
+
+  useEffect(() => {
+    chrome.storage.sync.get(null, (syncResult) => {
+      setCreatorIdsEndpoint(syncResult.creatorIdsEndpoint || '')
+      setPostCreatorDataEndpoint(syncResult.postCreatorDataEndpoint || '')
+      setPostCreatorErrorEndpoint(syncResult.postCreatorErrorEndpoint || '')
+      setApiKeyFormat(syncResult.apiKeyFormat || '')
+      setApiKeyValue(syncResult.apiKeyValue || '')
+
+      const storedUnit = syncResult.crawlIntervalUnit || 'seconds'
+      setIntervalUnit(storedUnit)
+
+      if (syncResult.crawlIntervalDuration) {
+        const storedDurationSeconds = Number(syncResult.crawlIntervalDuration)
+        let displayValue = storedDurationSeconds.toString()
+        if (storedUnit === 'minutes') {
+          displayValue = (storedDurationSeconds / 60).toString()
+        } else if (storedUnit === 'hours') {
+          displayValue = (storedDurationSeconds / 3600).toString()
+        }
+        setIntervalDuration(displayValue)
+      } else {
+        setIntervalDuration('')
+      }
+    })
+  }, [])
+
+  const debouncedSaveToStorage = useCallback(
+    debounce(async (settingsToSave: { [key: string]: any }) => {
+      console.log('Debounced save:', settingsToSave)
+      try {
+        await chrome.storage.sync.set(settingsToSave)
+      } catch (error) {
+        console.error('Failed to save to chrome.storage.sync:', error)
+      }
+    }, 1000),
+    []
+  )
 
   const handleResetSettings = () => {
     swal
-      .warning('Warning', 'Are you sure you want to reset all settings? This action cannot be undone.')
-      .then((result) => {
+      .warning('Reset Settings', 'Are you sure you want to reset all settings? This action cannot be undone.')
+      .then(async (result) => {
         if (result.isConfirmed) {
-          setMdCreatorIdsUrl('')
-          setMdCreatorPostUrl('')
-          setMdCreatorErrorUrl('')
-          setMdApiKeyFormat('')
-          setMdApiKeyValue('')
+          setCreatorIdsEndpoint('')
+          setPostCreatorDataEndpoint('')
+          setPostCreatorErrorEndpoint('')
+          setApiKeyFormat('')
+          setApiKeyValue('')
+          setIntervalDuration('')
+          setIntervalUnit('seconds')
+
+          try {
+            await chrome.storage.sync.clear()
+            swal.success('Settings Reset', 'All settings have been reset.')
+          } catch (error) {
+            console.error('Failed to clear sync storage:', error)
+            swal.error('Reset Error', 'Could not reset settings in storage.')
+          }
         }
       })
   }
 
-  const debouncedSetStorage = useCallback((key: any, value: any) => {
-    chrome.storage.sync.set({ [key]: value })
-  }, [])
+  const handleSaveSettings = async () => {
+    const numericValue = parseFloat(intervalDuration)
+    if (intervalDuration !== '' && (isNaN(numericValue) || numericValue <= 0)) {
+      return swal.error('Invalid Interval', 'Interval duration must be empty or a positive number.')
+    }
+
+    debouncedSaveToStorage.cancel()
+
+    const durationInSeconds =
+      intervalDuration === '' || isNaN(numericValue) || numericValue <= 0
+        ? null
+        : intervalUnit === 'minutes'
+          ? numericValue * 60
+          : intervalUnit === 'hours'
+            ? numericValue * 3600
+            : numericValue
+
+    try {
+      await chrome.storage.sync.set({
+        creatorIdsEndpoint: creatorIdsEndpoint,
+        postCreatorDataEndpoint: postCreatorDataEndpoint,
+        postCreatorErrorEndpoint: postCreatorErrorEndpoint,
+        apiKeyFormat: apiKeyFormat,
+        apiKeyValue: apiKeyValue,
+        crawlIntervalDuration: durationInSeconds,
+        crawlIntervalUnit: intervalUnit
+      })
+      swal.success('Settings Saved', 'Your settings have been saved successfully.')
+    } catch (error) {
+      console.error('Failed to save settings:', error)
+      swal.error('Save Error', 'Could not save settings.')
+    }
+  }
 
   useEffect(() => {
-    chrome.storage.sync.get(null, (syncResult) => {
-      setMdCreatorIdsUrl(syncResult.mdCreatorIdsUrl || '')
-      setMdCreatorPostUrl(syncResult.mdCreatorPostUrl || '')
-      setMdCreatorErrorUrl(syncResult.mdCreatorErrorUrl || '')
-      setMdApiKeyFormat(syncResult.mdApiKeyFormat || '')
-      setMdApiKeyValue(syncResult.mdApiKeyValue || '')
-    })
-  }, [])
+    if (creatorIdsEndpoint !== undefined) {
+      debouncedSaveToStorage({ creatorIdsEndpoint })
+    }
+  }, [creatorIdsEndpoint, debouncedSaveToStorage])
 
   useEffect(() => {
-    const debouncedFn = debounce((value) => debouncedSetStorage('mdCreatorIdsUrl', value), 1000)
-    debouncedFn(mdCreatorIdsUrl)
-
-    return () => debouncedFn.cancel()
-  }, [mdCreatorIdsUrl, debouncedSetStorage])
-
-  useEffect(() => {
-    const debouncedFn = debounce((value) => debouncedSetStorage('mdCreatorPostUrl', value), 1000)
-    debouncedFn(mdCreatorPostUrl)
-
-    return () => debouncedFn.cancel()
-  }, [mdCreatorPostUrl, debouncedSetStorage])
+    if (postCreatorDataEndpoint !== undefined) {
+      debouncedSaveToStorage({ postCreatorDataEndpoint })
+    }
+  }, [postCreatorDataEndpoint, debouncedSaveToStorage])
 
   useEffect(() => {
-    const debouncedFn = debounce((value) => debouncedSetStorage('mdCreatorErrorUrl', value), 1000)
-    debouncedFn(mdCreatorErrorUrl)
-
-    return () => debouncedFn.cancel()
-  }, [mdCreatorErrorUrl, debouncedSetStorage])
-
-  useEffect(() => {
-    const debouncedFn = debounce((value) => debouncedSetStorage('mdApiKeyFormat', value), 1000)
-    debouncedFn(mdApiKeyFormat)
-
-    return () => debouncedFn.cancel()
-  }, [mdApiKeyFormat, debouncedSetStorage])
+    if (postCreatorErrorEndpoint !== undefined) {
+      debouncedSaveToStorage({ postCreatorErrorEndpoint })
+    }
+  }, [postCreatorErrorEndpoint, debouncedSaveToStorage])
 
   useEffect(() => {
-    const debouncedFn = debounce((value) => debouncedSetStorage('mdApiKeyValue', value), 1000)
-    debouncedFn(mdApiKeyValue)
+    if (apiKeyFormat !== undefined) {
+      debouncedSaveToStorage({ apiKeyFormat })
+    }
+  }, [apiKeyFormat, debouncedSaveToStorage])
 
-    return () => debouncedFn.cancel()
-  }, [mdApiKeyValue, debouncedSetStorage])
+  useEffect(() => {
+    if (apiKeyValue !== undefined) {
+      debouncedSaveToStorage({ apiKeyValue })
+    }
+  }, [apiKeyValue, debouncedSaveToStorage])
+
+  useEffect(() => {
+    const numericValue = parseFloat(intervalDuration)
+    if (!isNaN(numericValue) && numericValue > 0) {
+      const durationInSeconds =
+        intervalUnit === 'minutes' ? numericValue * 60 : intervalUnit === 'hours' ? numericValue * 3600 : numericValue
+      debouncedSaveToStorage({
+        crawlIntervalDuration: durationInSeconds,
+        crawlIntervalUnit: intervalUnit
+      })
+    } else if (intervalDuration === '') {
+      debouncedSaveToStorage({ crawlIntervalDuration: null, crawlIntervalUnit: intervalUnit })
+    }
+  }, [intervalDuration, intervalUnit, debouncedSaveToStorage])
 
   return (
-    <main className="options-container">
-      <h2 className="options-title">Extension Settings</h2>
+    <main className="options">
+      <h2 className="options__title">Extension Settings</h2>
 
-      <section className="options-section">
+      {/* API Configuration Section */}
+      <section className="options__section">
         <h3 className="section-title">API Configuration</h3>
 
-        <div className="option-row api-key-row">
-          <div className="api-key-column">
-            <label htmlFor="api-key-format" className="option-label">
-              API Key Format:
-            </label>
-            <input
-              id="api-key-format"
-              className="option-input"
-              type="text"
-              value={mdApiKeyFormat}
-              onChange={(e) => setMdApiKeyFormat(e.target.value)}
-            />
-          </div>
-          <div className="api-key-column">
-            <label htmlFor="api-key-value" className="option-label">
-              API Key Value:
-            </label>
-            <input
-              id="api-key-value"
-              className="option-input"
-              type="text"
-              value={mdApiKeyValue}
-              onChange={(e) => setMdApiKeyValue(e.target.value)}
-            />
+        <div className="options__row options__row--api-key">
+          <div className="api-key-group">
+            <div className="api-key-group__column">
+              <label htmlFor="api-key-format" className="options__label">
+                API Key Format:
+              </label>
+              <input
+                id="api-key-format"
+                className="options__input"
+                type="text"
+                placeholder="e.g., X-API-Key"
+                value={apiKeyFormat}
+                onChange={(e) => setApiKeyFormat(e.target.value)}
+              />
+            </div>
+            <div className="api-key-group__column">
+              <label htmlFor="api-key-value" className="options__label">
+                API Key Value:
+              </label>
+              <input
+                id="api-key-value"
+                className="options__input"
+                type="text"
+                placeholder="Enter API Key Value"
+                value={apiKeyValue}
+                onChange={(e) => setApiKeyValue(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="option-row">
-          <label htmlFor="get-creator-ids-endpoint" className="option-label">
-            Get Creator Ids Endpoint:
+        <div className="options__row">
+          <label htmlFor="get-creator-ids-endpoint" className="options__label">
+            Get Creator IDs URL:
           </label>
           <input
             id="get-creator-ids-endpoint"
-            className="option-input"
-            type="text"
-            value={mdCreatorIdsUrl}
-            onChange={(e) => setMdCreatorIdsUrl(e.target.value)}
+            className="options__input"
+            type="url"
+            placeholder="Enter URL to fetch creator IDs"
+            value={creatorIdsEndpoint}
+            onChange={(e) => setCreatorIdsEndpoint(e.target.value)}
           />
         </div>
 
-        <div className="option-row">
-          <label htmlFor="post-creator-data-endpoint" className="option-label">
-            Post Creators Data Endpoint:
+        <div className="options__row">
+          <label htmlFor="post-creator-data-endpoint" className="options__label">
+            Post Data URL:
           </label>
           <input
             id="post-creator-data-endpoint"
-            className="option-input"
-            type="text"
-            value={mdCreatorPostUrl}
-            onChange={(e) => setMdCreatorPostUrl(e.target.value)}
+            className="options__input"
+            type="url"
+            placeholder="Enter URL to send crawled data"
+            value={postCreatorDataEndpoint}
+            onChange={(e) => setPostCreatorDataEndpoint(e.target.value)}
           />
         </div>
 
-        <div className="option-row">
-          <label htmlFor="post-creator-errors-endpoint" className="option-label">
-            Post Creators Error Endpoint:
+        <div className="options__row">
+          <label htmlFor="post-creator-errors-endpoint" className="options__label">
+            Post Errors URL:
           </label>
           <input
             id="post-creator-errors-endpoint"
-            className="option-input"
-            type="text"
-            value={mdCreatorErrorUrl}
-            onChange={(e) => setMdCreatorErrorUrl(e.target.value)}
+            className="options__input"
+            type="url"
+            placeholder="Enter URL to send error reports"
+            value={postCreatorErrorEndpoint}
+            onChange={(e) => setPostCreatorErrorEndpoint(e.target.value)}
           />
         </div>
       </section>
 
-      <section className="options-section">
+      {/* Other Configuration Section */}
+      <section className="options__section">
+        <h3 className="section-title">Auto Crawl Configuration</h3>
+
+        <div className="options__row">
+          <label htmlFor="crawl-interval-duration" className="options__label">
+            Auto Crawl Interval:
+          </label>
+          <div className="options__input-group">
+            <input
+              id="crawl-interval-duration"
+              className="options__input options__input--interval-duration"
+              type="number"
+              min="1"
+              placeholder="Duration"
+              value={intervalDuration}
+              onChange={(e) => setIntervalDuration(e.target.value)}
+            />
+            <select
+              id="crawl-interval-unit"
+              className="options__input options__input--interval-unit"
+              value={intervalUnit}
+              onChange={(e) => setIntervalUnit(e.target.value)}
+            >
+              <option value="seconds">Seconds</option>
+              <option value="minutes">Minutes</option>
+              <option value="hours">Hours</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {/* Actions Section */}
+      <section className="options__section">
         <h3 className="section-title">Actions</h3>
-        <div className="option-row">
-          <button className="reset-button" onClick={handleResetSettings}>
-            Reset Settings
+        <div className="options__row options__row--actions">
+          <button className="button button--reset" onClick={handleResetSettings}>
+            Reset All Settings
           </button>
-          <button className="close-button" style={{ marginLeft: 'auto' }} onClick={() => window.close()}>
-            Close
-          </button>
+          <div className="button-group">
+            <button className="button button--close" onClick={() => window.close()}>
+              Close
+            </button>
+            <button className="button button--save" onClick={handleSaveSettings}>
+              Save Settings
+            </button>
+          </div>
         </div>
       </section>
     </main>

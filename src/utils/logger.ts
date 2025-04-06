@@ -5,7 +5,8 @@ export enum ConsoleType {
   LOG = 'log',
   INFO = 'info',
   WARN = 'warn',
-  ERROR = 'error'
+  ERROR = 'error',
+  DEBUG = 'debug'
 }
 
 class Logger {
@@ -28,6 +29,10 @@ class Logger {
         break
       }
 
+      case ConsoleType.DEBUG: {
+        console.debug(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
+      }
+
       default: {
         console.log(`%c Devlin %c${message}`, logStyle, 'color: #fff', data)
       }
@@ -48,6 +53,10 @@ class Logger {
 
   public error(message: string, data?: any) {
     this.log(message, data, ConsoleType.ERROR)
+  }
+
+  public debug(message: string, data?: any) {
+    this.log(message, data, ConsoleType.DEBUG)
   }
 }
 

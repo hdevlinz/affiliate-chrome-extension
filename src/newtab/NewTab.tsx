@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-import './NewTab.css'
+import './NewTab.scss'
 
 export const NewTab = () => {
   const getTime = () => {
