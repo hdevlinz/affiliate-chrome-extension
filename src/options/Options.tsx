@@ -1,156 +1,26 @@
-import { debounce } from 'lodash'
-import { useCallback, useEffect, useState } from 'react'
-import { swal } from '../utils/swal'
+import { useOptions } from '../hooks/useOptions'
+import { TimeIntervalUnit } from '../types/enums'
 import './Options.scss'
 
 export const Options = () => {
-  const [creatorIdsEndpoint, setCreatorIdsEndpoint] = useState('')
-  const [postCreatorDataEndpoint, setPostCreatorDataEndpoint] = useState('')
-  const [postCreatorErrorEndpoint, setPostCreatorErrorEndpoint] = useState('')
-  const [apiKeyFormat, setApiKeyFormat] = useState('')
-  const [apiKeyValue, setApiKeyValue] = useState('')
-  const [intervalDuration, setIntervalDuration] = useState('')
-  const [intervalUnit, setIntervalUnit] = useState('seconds')
-
-  useEffect(() => {
-    chrome.storage.sync.get(null, (syncResult) => {
-      setCreatorIdsEndpoint(syncResult.creatorIdsEndpoint || '')
-      setPostCreatorDataEndpoint(syncResult.postCreatorDataEndpoint || '')
-      setPostCreatorErrorEndpoint(syncResult.postCreatorErrorEndpoint || '')
-      setApiKeyFormat(syncResult.apiKeyFormat || '')
-      setApiKeyValue(syncResult.apiKeyValue || '')
-
-      const storedUnit = syncResult.crawlIntervalUnit || 'seconds'
-      setIntervalUnit(storedUnit)
-
-      if (syncResult.crawlIntervalDuration) {
-        const storedDurationSeconds = Number(syncResult.crawlIntervalDuration)
-        let displayValue = storedDurationSeconds.toString()
-        if (storedUnit === 'minutes') {
-          displayValue = (storedDurationSeconds / 60).toString()
-        } else if (storedUnit === 'hours') {
-          displayValue = (storedDurationSeconds / 3600).toString()
-        }
-        setIntervalDuration(displayValue)
-      } else {
-        setIntervalDuration('')
-      }
-    })
-  }, [])
-
-  const debouncedSaveToStorage = useCallback(
-    debounce(async (settingsToSave: { [key: string]: any }) => {
-      console.log('Debounced save:', settingsToSave)
-      try {
-        await chrome.storage.sync.set(settingsToSave)
-      } catch (error) {
-        console.error('Failed to save to chrome.storage.sync:', error)
-      }
-    }, 1000),
-    []
-  )
-
-  const handleResetSettings = () => {
-    swal
-      .warning('Reset Settings', 'Are you sure you want to reset all settings? This action cannot be undone.')
-      .then(async (result) => {
-        if (result.isConfirmed) {
-          setCreatorIdsEndpoint('')
-          setPostCreatorDataEndpoint('')
-          setPostCreatorErrorEndpoint('')
-          setApiKeyFormat('')
-          setApiKeyValue('')
-          setIntervalDuration('')
-          setIntervalUnit('seconds')
-
-          try {
-            await chrome.storage.sync.clear()
-            swal.success('Settings Reset', 'All settings have been reset.')
-          } catch (error) {
-            console.error('Failed to clear sync storage:', error)
-            swal.error('Reset Error', 'Could not reset settings in storage.')
-          }
-        }
-      })
-  }
-
-  const handleSaveSettings = async () => {
-    const numericValue = parseFloat(intervalDuration)
-    if (intervalDuration !== '' && (isNaN(numericValue) || numericValue <= 0)) {
-      return swal.error('Invalid Interval', 'Interval duration must be empty or a positive number.')
-    }
-
-    debouncedSaveToStorage.cancel()
-
-    const durationInSeconds =
-      intervalDuration === '' || isNaN(numericValue) || numericValue <= 0
-        ? null
-        : intervalUnit === 'minutes'
-          ? numericValue * 60
-          : intervalUnit === 'hours'
-            ? numericValue * 3600
-            : numericValue
-
-    try {
-      await chrome.storage.sync.set({
-        creatorIdsEndpoint: creatorIdsEndpoint,
-        postCreatorDataEndpoint: postCreatorDataEndpoint,
-        postCreatorErrorEndpoint: postCreatorErrorEndpoint,
-        apiKeyFormat: apiKeyFormat,
-        apiKeyValue: apiKeyValue,
-        crawlIntervalDuration: durationInSeconds,
-        crawlIntervalUnit: intervalUnit
-      })
-      swal.success('Settings Saved', 'Your settings have been saved successfully.')
-    } catch (error) {
-      console.error('Failed to save settings:', error)
-      swal.error('Save Error', 'Could not save settings.')
-    }
-  }
-
-  useEffect(() => {
-    if (creatorIdsEndpoint !== undefined) {
-      debouncedSaveToStorage({ creatorIdsEndpoint })
-    }
-  }, [creatorIdsEndpoint, debouncedSaveToStorage])
-
-  useEffect(() => {
-    if (postCreatorDataEndpoint !== undefined) {
-      debouncedSaveToStorage({ postCreatorDataEndpoint })
-    }
-  }, [postCreatorDataEndpoint, debouncedSaveToStorage])
-
-  useEffect(() => {
-    if (postCreatorErrorEndpoint !== undefined) {
-      debouncedSaveToStorage({ postCreatorErrorEndpoint })
-    }
-  }, [postCreatorErrorEndpoint, debouncedSaveToStorage])
-
-  useEffect(() => {
-    if (apiKeyFormat !== undefined) {
-      debouncedSaveToStorage({ apiKeyFormat })
-    }
-  }, [apiKeyFormat, debouncedSaveToStorage])
-
-  useEffect(() => {
-    if (apiKeyValue !== undefined) {
-      debouncedSaveToStorage({ apiKeyValue })
-    }
-  }, [apiKeyValue, debouncedSaveToStorage])
-
-  useEffect(() => {
-    const numericValue = parseFloat(intervalDuration)
-    if (!isNaN(numericValue) && numericValue > 0) {
-      const durationInSeconds =
-        intervalUnit === 'minutes' ? numericValue * 60 : intervalUnit === 'hours' ? numericValue * 3600 : numericValue
-      debouncedSaveToStorage({
-        crawlIntervalDuration: durationInSeconds,
-        crawlIntervalUnit: intervalUnit
-      })
-    } else if (intervalDuration === '') {
-      debouncedSaveToStorage({ crawlIntervalDuration: null, crawlIntervalUnit: intervalUnit })
-    }
-  }, [intervalDuration, intervalUnit, debouncedSaveToStorage])
+  const {
+    creatorIdsEndpoint,
+    setCreatorIdsEndpoint,
+    postCreatorDataEndpoint,
+    setPostCreatorDataEndpoint,
+    postCreatorErrorEndpoint,
+    setPostCreatorErrorEndpoint,
+    apiKeyFormat,
+    setApiKeyFormat,
+    apiKeyValue,
+    setApiKeyValue,
+    intervalDuration,
+    setIntervalDuration,
+    intervalUnit,
+    setIntervalUnit,
+    handleSaveSettings,
+    handleResetSettings
+  } = useOptions()
 
   return (
     <main className="options">
@@ -175,6 +45,7 @@ export const Options = () => {
                 onChange={(e) => setApiKeyFormat(e.target.value)}
               />
             </div>
+
             <div className="api-key-group__column">
               <label htmlFor="api-key-value" className="options__label">
                 API Key Value:
@@ -252,15 +123,16 @@ export const Options = () => {
               value={intervalDuration}
               onChange={(e) => setIntervalDuration(e.target.value)}
             />
+
             <select
               id="crawl-interval-unit"
               className="options__input options__input--interval-unit"
               value={intervalUnit}
-              onChange={(e) => setIntervalUnit(e.target.value)}
+              onChange={(e) => setIntervalUnit(e.target.value as TimeIntervalUnit)}
             >
-              <option value="seconds">Seconds</option>
-              <option value="minutes">Minutes</option>
-              <option value="hours">Hours</option>
+              <option value={TimeIntervalUnit.SECONDS}>Seconds</option>
+              <option value={TimeIntervalUnit.MINUTES}>Minutes</option>
+              <option value={TimeIntervalUnit.HOURS}>Hours</option>
             </select>
           </div>
         </div>
@@ -270,13 +142,16 @@ export const Options = () => {
       <section className="options__section">
         <h3 className="section-title">Actions</h3>
         <div className="options__row options__row--actions">
+          {/* Use reusable button class + modifier */}
           <button className="button button--reset" onClick={handleResetSettings}>
             Reset All Settings
           </button>
+
           <div className="button-group">
             <button className="button button--close" onClick={() => window.close()}>
               Close
             </button>
+
             <button className="button button--save" onClick={handleSaveSettings}>
               Save Settings
             </button>

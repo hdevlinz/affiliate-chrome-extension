@@ -15,7 +15,7 @@ To start development, install dependencies and run the development server:
 
 ```sh
 pnpm install
-npm run dev
+pnpm run dev
 ```
 
 > [!NOTE]
@@ -29,7 +29,7 @@ npm run dev
 To build the extension, run:
 
 ```sh
-npm run build
+pnpm run build
 ```
 
 > [!NOTE]
@@ -38,7 +38,7 @@ npm run build
 To create a zip file for distribution:
 
 ```sh
-npm run zip
+pnpm run zip
 ```
 
 > [!NOTE]

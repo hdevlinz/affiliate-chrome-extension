@@ -82,7 +82,7 @@ window.fetch = async function (...args) {
   }
 }
 
-const sendData = (data) => window.postMessage({ type: 'adu_affiliate', action: 'fetch_data', payload: data }, '*')
+const sendData = (data) => window.postMessage({ type: 'affiliate', action: 'fetch_data', payload: data }, '*')
 
 const getQueryParams = (urlString) => {
   try {
