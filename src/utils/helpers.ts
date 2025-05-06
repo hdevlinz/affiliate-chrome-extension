@@ -1,5 +1,5 @@
 import { transform } from 'lodash'
-import { isObject } from './checks'
+import { isObject } from './validators'
 
 export const exportFile = (data: BlobPart, filename: string, type: any) => {
   const blob = new Blob([data], { type })

@@ -52,7 +52,6 @@ export const SidePanel = () => {
   useEffect(() => {
     if (!autoCrawlNotificationShownRef.current) {
       autoCrawlNotificationShownRef.current = true
-      logger.info('Showing auto-crawl notification')
 
       // Create a countdown alert that updates every second
       const timerDuration = 30 // seconds

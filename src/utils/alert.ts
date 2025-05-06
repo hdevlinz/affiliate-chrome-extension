@@ -1,7 +1,10 @@
 import Swal, { SweetAlertIcon, SweetAlertOptions } from 'sweetalert2'
 import { THEME } from '../config/constants'
 import { AlertIconType } from '../types/enums'
-import { AlertOptions } from '../types/index'
+
+export interface AlertOptions {
+  [key: string]: any
+}
 
 const BASE_ALERT_CONFIG = {
   theme: 'auto',
@@ -41,16 +44,10 @@ const createToast = (params: { title: string; text: string; icon: AlertIconType 
 }
 
 export const alert = {
-  /**
-   * Show an information alert
-   */
   info: (title: string, text: string, options: AlertOptions = {}) => {
     return createAlert({ title, text, icon: AlertIconType.INFO, ...options })
   },
 
-  /**
-   * Show a success alert (auto-closes after 2 seconds by default)
-   */
   success: (title: string, text: string, options: AlertOptions = {}) => {
     return createAlert({
       title,
@@ -62,9 +59,6 @@ export const alert = {
     })
   },
 
-  /**
-   * Show a warning alert with Yes/Cancel buttons
-   */
   warning: (title: string, text: string, options: AlertOptions = {}) => {
     return createAlert({
       title,
@@ -79,16 +73,10 @@ export const alert = {
     })
   },
 
-  /**
-   * Show an error alert
-   */
   error: (title: string, text: string, options: AlertOptions = {}) => {
     return createAlert({ title, text, icon: AlertIconType.ERROR, ...options })
   },
 
-  /**
-   * Show a question alert with Yes/Cancel buttons
-   */
   question: (title: string, text: string, options: AlertOptions = {}) => {
     return createAlert({
       title,
@@ -105,34 +93,21 @@ export const alert = {
 }
 
 export const toast = {
-  /**
-   * Show an information toast notification
-   */
   info: (title: string, text: string, options: AlertOptions = {}) => {
     return createToast({ title, text, icon: AlertIconType.INFO, ...options })
   },
 
-  /**
-   * Show a success toast notification
-   */
   success: (title: string, text: string, options: AlertOptions = {}) => {
     return createToast({ title, text, icon: AlertIconType.SUCCESS, ...options })
   },
 
-  /**
-   * Show a warning toast notification
-   */
   warning: (title: string, text: string, options: AlertOptions = {}) => {
     return createToast({ title, text, icon: AlertIconType.WARNING, ...options })
   },
 
-  /**
-   * Show an error toast notification
-   */
   error: (title: string, text: string, options: AlertOptions = {}) => {
     return createToast({ title, text, icon: AlertIconType.ERROR, ...options })
   }
 }
 
-// For backward compatibility with existing code
 export const swal = alert

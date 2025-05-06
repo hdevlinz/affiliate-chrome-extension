@@ -1,67 +1,60 @@
 import { merge } from 'lodash'
-import { Creator, CreatorProfile, CrawlError, InterceptData } from '../types'
 import { KEYS_TO_OMIT, PROFILE_TYPE } from '../config/constants'
-import { storageService } from './storage.service'
-import { messagingService } from './messaging.service'
-import { createLogger } from '../utils/logger'
+import { CrawlError, Creator, CreatorProfile, InterceptData } from '../types'
+import { CREATOR_NOT_FOUND } from '../types/exceptions'
 import { deepFlatten, deepOmit } from '../utils/helpers'
-import { CREATOR_HAS_NO_PROFILES, CREATOR_NOT_FOUND } from '../types/exceptions'
-import { isEmpty, isEmptyArray, isNullOrUndefined } from '../utils/checks'
+import { createLogger } from '../utils/logger'
+import { isEmpty, isEmptyArray, isNullOrUndefined } from '../utils/validators'
+import { messagingService } from './messaging.service'
+import { storageService } from './storage.service'
 
 const logger = createLogger('CrawlerService')
 
 class CrawlerService {
   private state = {
+    searchInputSelector: 'input[data-tid="m4b_input_search"]',
     fetchPromises: [] as Promise<any>[],
+    creatorSearchDelay: 10000,
+    profileFetchDelay: 5000,
     isCrawling: false,
     startTime: 0,
+    currentCreatorIndex: 0,
     creatorIds: [] as string[],
     notFoundCreators: [] as string[],
-    currentCreatorIndex: 0,
     useApi: false,
-    headers: {} as Record<string, string>,
+    crawlerHeaders: {} as Record<string, string>,
     postCreatorDataEndpoint: null as string | null,
     postCreatorErrorEndpoint: null as string | null
   }
 
   private crawlTimeoutId: NodeJS.Timeout | null = null
 
-  /**
-   * Reset the crawler state to defaults
-   */
+  public getState(): typeof this.state {
+    return { ...this.state }
+  }
+
+  public updateState(updates: Partial<typeof this.state>): void {
+    Object.assign(this.state, updates)
+  }
+
   public resetState(): void {
-    logger.info('Resetting crawler state')
     this.state = {
+      searchInputSelector: 'input[data-tid="m4b_input_search"]',
       fetchPromises: [],
+      creatorSearchDelay: 10000,
+      profileFetchDelay: 5000,
       isCrawling: false,
       startTime: 0,
       creatorIds: [],
       notFoundCreators: [],
       currentCreatorIndex: 0,
       useApi: false,
-      headers: {},
+      crawlerHeaders: {},
       postCreatorDataEndpoint: null,
       postCreatorErrorEndpoint: null
     }
   }
 
-  /**
-   * Update crawler state with new values
-   */
-  public updateState(updates: Partial<typeof this.state>): void {
-    Object.assign(this.state, updates)
-  }
-
-  /**
-   * Get the current crawler state
-   */
-  public getState(): typeof this.state {
-    return { ...this.state }
-  }
-
-  /**
-   * Post creators data to the configured endpoint
-   */
   public async postCreatorsData(data: Creator | Creator[]): Promise<void> {
     if (!this.state.postCreatorDataEndpoint) {
       logger.warn('Cannot post creator data: No endpoint configured')
@@ -70,25 +63,27 @@ class CrawlerService {
 
     const validatedCreatorsData = Array.isArray(data) ? data : [data]
 
+    const [url, endpoint] = this.state.postCreatorDataEndpoint.split(':endpoint/')
+
     try {
       logger.info(`Posting ${validatedCreatorsData.length} creator(s) data to API`)
-      await fetch(this.state.postCreatorDataEndpoint, {
+      await fetch(url, {
         method: 'POST',
         mode: 'no-cors',
         headers: {
-          ...this.state.headers,
+          ...this.state.crawlerHeaders,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(validatedCreatorsData)
+        body: JSON.stringify({
+          endpoint,
+          payload: validatedCreatorsData
+        })
       })
     } catch (error) {
       logger.error('Error posting creators data:', error)
     }
   }
 
-  /**
-   * Post creators error information to the configured endpoint
-   */
   public async postCreatorsError(data: CrawlError | CrawlError[]): Promise<void> {
     if (!this.state.postCreatorErrorEndpoint) {
       logger.warn('Cannot post creator error: No endpoint configured')
@@ -97,25 +92,141 @@ class CrawlerService {
 
     const validatedCreatorsError = Array.isArray(data) ? data : [data]
 
+    const [url, endpoint] = this.state.postCreatorErrorEndpoint.split(':endpoint/')
+
     try {
       logger.info(`Posting ${validatedCreatorsError.length} creator error(s) to API`)
-      await fetch(this.state.postCreatorErrorEndpoint, {
+      await fetch(url, {
         method: 'POST',
         mode: 'no-cors',
         headers: {
-          ...this.state.headers,
+          ...this.state.crawlerHeaders,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(validatedCreatorsError)
+        body: JSON.stringify({
+          endpoint,
+          payload: validatedCreatorsError
+        })
       })
     } catch (error) {
       logger.error('Error posting creators error:', error)
     }
   }
 
-  /**
-   * Process the search input for the current creator
-   */
+  public async startCrawling(useApi: boolean, creatorIds: string[], startTime: number = Date.now()): Promise<void> {
+    // Get API settings from sync storage
+    const syncSettings = await storageService.getSyncStorage()
+
+    this.resetState()
+
+    this.updateState({
+      isCrawling: true,
+      startTime,
+      creatorIds,
+      useApi,
+      postCreatorDataEndpoint: syncSettings.postCreatorDataEndpoint || null,
+      postCreatorErrorEndpoint: syncSettings.postCreatorErrorEndpoint || null
+    })
+
+    // Validate API settings if needed
+    if (useApi && isEmpty(this.state.postCreatorDataEndpoint) && isEmpty(this.state.postCreatorErrorEndpoint)) {
+      this.resetState()
+      await storageService.updateLocalStorage({ isCrawling: false })
+      messagingService.showNotification({
+        title: 'Creator Crawler Stopped',
+        message: 'API endpoint is not set! Crawling cannot start.'
+      })
+      return
+    }
+
+    // Set up API headers if provided
+    if (syncSettings.apiKeyValue) {
+      this.state.crawlerHeaders = {
+        ...this.state.crawlerHeaders,
+        'X-API-Key': syncSettings.apiKeyValue
+      }
+    }
+
+    this.continueCrawling()
+  }
+
+  public continueCrawling(): void {
+    // Check if crawling should stop
+    if (!this.state.isCrawling || this.state.currentCreatorIndex >= this.state.creatorIds.length) {
+      this.finishCrawling()
+      return
+    }
+
+    // Find search input
+    const searchInput = document.querySelector(this.state.searchInputSelector) as HTMLInputElement | null
+    if (!searchInput) {
+      if (this.crawlTimeoutId) {
+        clearTimeout(this.crawlTimeoutId)
+        this.crawlTimeoutId = null
+      }
+
+      this.state.isCrawling = false
+      logger.warn('Search input field not found! Crawling cannot continue.')
+      storageService.updateLocalStorage({ isCrawling: false })
+      messagingService.showNotification({
+        title: 'Crawler Error',
+        message: 'Search input field not found! Crawling cannot continue.'
+      })
+      return
+    }
+
+    this.processSearchInput(searchInput)
+  }
+
+  public stopCrawling(): void {
+    if (this.crawlTimeoutId) {
+      clearTimeout(this.crawlTimeoutId)
+      this.crawlTimeoutId = null
+      logger.info('Cleared pending crawl timeout due to STOP.')
+    }
+
+    this.state.isCrawling = false
+    storageService.updateLocalStorage({ isCrawling: false })
+  }
+
+  private async finishCrawling(): Promise<void> {
+    if (this.crawlTimeoutId) {
+      clearTimeout(this.crawlTimeoutId)
+      this.crawlTimeoutId = null
+    }
+
+    await Promise.allSettled(this.state.fetchPromises)
+
+    // Check if crawling was stopped manually (not by reaching the end of creator list)
+    if (!this.state.isCrawling && this.state.currentCreatorIndex < this.state.creatorIds.length) {
+      messagingService.showNotification({
+        title: 'Creator Crawler Stopped',
+        message: 'The creator crawling process has been stopped.'
+      })
+      return
+    }
+
+    const { crawledCreators = [] } = await storageService.getLocalStorage()
+    const crawledCreatorIds = crawledCreators.map((creator: Creator) => creator.id)
+
+    await storageService.updateLocalStorage({
+      isCrawling: false,
+      crawlDurationSeconds: Math.round((Date.now() - this.state.startTime) / 1000),
+      notFoundCreators: this.state.notFoundCreators.filter((creatorId) => !crawledCreatorIds.includes(creatorId))
+    })
+
+    this.resetState()
+
+    // Send notification about completed crawl
+    messagingService.showNotification({
+      title: 'Creator Crawler Completed',
+      message: 'The creator crawling process has been completed for all creators.'
+    })
+
+    // Send message to trigger auto-crawl if enabled
+    messagingService.completeCrawling()
+  }
+
   public processSearchInput(searchInput: HTMLInputElement): void {
     if (!this.state.isCrawling || this.state.currentCreatorIndex >= this.state.creatorIds.length) {
       logger.warn('Cannot process search input: Crawling is not active or reached the end')
@@ -147,127 +258,32 @@ class CrawlerService {
       this.state.currentCreatorIndex++
       storageService.updateLocalStorage({ currentCreatorIndex: this.state.currentCreatorIndex })
       this.continueCrawling()
-    }, 4000)
+    }, this.state.creatorSearchDelay)
 
     logger.info(
       `Search creator: ${currentCreatorId} (Index: ${this.state.currentCreatorIndex + 1} / ${this.state.creatorIds.length})`
     )
   }
 
-  /**
-   * Continue the crawling process
-   */
-  public continueCrawling(): void {
-    // Check if crawling should stop
-    if (!this.state.isCrawling || this.state.currentCreatorIndex >= this.state.creatorIds.length) {
-      this.finishCrawling()
+  public async processNotFoundCreator(creatorId: string): Promise<void> {
+    logger.warn(`Creator potentially not found in affiliate system: ${creatorId}`)
+    if (this.state.notFoundCreators.includes(creatorId)) {
+      logger.info(`Creator ${creatorId} already marked as not found`)
       return
     }
 
-    // Find search input
-    const searchInput = document.querySelector('input[data-tid="m4b_input_search"]') as HTMLInputElement | null
-    if (!searchInput) {
-      if (this.crawlTimeoutId) {
-        clearTimeout(this.crawlTimeoutId)
-        this.crawlTimeoutId = null
-      }
+    this.state.notFoundCreators.push(creatorId)
+    logger.info(`Added ${creatorId} to notFoundCreators list.`)
 
-      this.state.isCrawling = false
-      logger.warn('Search input field not found! Crawling cannot continue.')
-      storageService.updateLocalStorage({ isCrawling: false })
-      messagingService.showNotification({
-        title: 'Crawler Error',
-        message: 'Search input field not found! Crawling cannot continue.'
+    if (this.state.useApi) {
+      await this.postCreatorsError({
+        data: { creator_id: creatorId },
+        code: CREATOR_NOT_FOUND,
+        message: 'Creator potentially not found in affiliate system'
       })
-      return
     }
-
-    this.processSearchInput(searchInput)
   }
 
-  /**
-   * Finish the crawling process and clean up
-   */
-  private async finishCrawling(): Promise<void> {
-    if (this.crawlTimeoutId) {
-      clearTimeout(this.crawlTimeoutId)
-      this.crawlTimeoutId = null
-    }
-
-    await Promise.allSettled(this.state.fetchPromises)
-
-    if (!this.state.isCrawling && this.state.currentCreatorIndex < this.state.creatorIds.length) {
-      messagingService.showNotification({
-        title: 'Creator Crawler Stopped',
-        message: 'The creator crawling process has been stopped.'
-      })
-      return
-    }
-
-    const { crawledCreators = [] } = await storageService.getLocalStorage()
-    const crawledCreatorIds = crawledCreators.map((creator: Creator) => creator.id)
-
-    await storageService.updateLocalStorage({
-      isCrawling: false,
-      crawlDurationSeconds: Math.round((Date.now() - this.state.startTime) / 1000),
-      notFoundCreators: this.state.notFoundCreators.filter((creatorId) => !crawledCreatorIds.includes(creatorId))
-    })
-
-    messagingService.showNotification({
-      title: 'Creator Crawler Completed',
-      message: 'The creator crawling process has been completed for all creators.'
-    })
-    this.resetState()
-  }
-
-  /**
-   * Initialize the crawler with settings and start crawling
-   */
-  public async initializeAndStart(
-    useApi: boolean,
-    creatorIds: string[],
-    startTime: number = Date.now()
-  ): Promise<void> {
-    logger.info('Initializing crawler with settings')
-
-    // Get API settings from sync storage
-    const syncSettings = await storageService.getSyncStorage()
-
-    this.resetState()
-
-    this.updateState({
-      postCreatorDataEndpoint: syncSettings.postCreatorDataEndpoint || null,
-      postCreatorErrorEndpoint: syncSettings.postCreatorErrorEndpoint || null,
-      useApi,
-      isCrawling: true,
-      startTime,
-      creatorIds
-    })
-
-    // Set up API headers if provided
-    if (syncSettings.apiKeyFormat && syncSettings.apiKeyValue) {
-      this.state.headers = {
-        [syncSettings.apiKeyFormat]: syncSettings.apiKeyValue
-      }
-    }
-
-    // Validate API settings if needed
-    if (useApi && isEmpty(this.state.postCreatorDataEndpoint) && isEmpty(this.state.postCreatorErrorEndpoint)) {
-      await storageService.updateLocalStorage({ isCrawling: false })
-      messagingService.showNotification({
-        title: 'Creator Crawler Stopped',
-        message: 'API endpoint is not set! Crawling cannot start.'
-      })
-      this.resetState()
-      return
-    }
-
-    this.continueCrawling()
-  }
-
-  /**
-   * Process intercepted creator data from network requests
-   */
   public async processInterceptedData(interceptData: InterceptData): Promise<void> {
     if (this.state.currentCreatorIndex >= this.state.creatorIds.length) {
       logger.debug('Ignoring intercepted data: Reached end of creator list')
@@ -275,63 +291,65 @@ class CrawlerService {
     }
 
     const currentCreatorId = this.state.creatorIds[this.state.currentCreatorIndex]
+
+    logger.info('Checking if creator exists in affiliate system:', currentCreatorId)
+    try {
+      const response = await fetch(`https://www.tiktok.com/oembed?url=https://www.tiktok.com/@${currentCreatorId}`)
+
+      logger.info('Response from oembed: ', response)
+
+      if (!response.ok) {
+        await this.processNotFoundCreator(currentCreatorId)
+        return
+      }
+    } catch (error) {
+      await this.processNotFoundCreator(currentCreatorId)
+      return
+    }
+
     logger.info('Processing intercepted data for creator:', currentCreatorId)
 
     const creatorProfiles = interceptData.responsePayload.creator_profile_list
     const matchingCreator = creatorProfiles?.find((creator: any) => creator.handle.value === currentCreatorId)
 
     if (isEmptyArray(creatorProfiles) || isNullOrUndefined(matchingCreator)) {
-      logger.warn(`Creator potentially not found in affiliate system: ${currentCreatorId}`)
-
-      if (!this.state.notFoundCreators.includes(currentCreatorId)) {
-        this.state.notFoundCreators.push(currentCreatorId)
-        logger.info(`Added ${currentCreatorId} to notFoundCreators list.`)
-
-        if (this.state.useApi) {
-          await this.postCreatorsError({
-            data: { creator_id: currentCreatorId },
-            code: CREATOR_NOT_FOUND,
-            message: 'Creator potentially not found in affiliate system'
-          })
-        }
-      }
-
+      await this.processNotFoundCreator(currentCreatorId)
       return
     }
 
     await this.fetchCreatorProfiles(matchingCreator, interceptData)
   }
 
-  /**
-   * Fetch detailed profiles for a creator
-   */
   private async fetchCreatorProfiles(matchingCreator: any, interceptData: InterceptData): Promise<void> {
     const currentCreatorId = this.state.creatorIds[this.state.currentCreatorIndex]
-    const headers = {
-      ...interceptData.requestHeaders,
-      'Content-Type': 'application/json'
-    }
 
     const fetchProfilePromises: Promise<any>[] = PROFILE_TYPE.sort(() => Math.random() - 0.5).map(
       async (profile_type) => {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, this.state.profileFetchDelay))
 
         try {
           const response = await fetch(interceptData.url.replace('/find', '/profile'), {
             method: 'POST',
-            headers: headers,
+            headers: {
+              ...interceptData.requestHeaders,
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
               creator_oec_id: matchingCreator.creator_oecuid.value,
               profile_types: [profile_type]
             })
           })
 
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
 
           const crawlerResponse = await response.json()
           const { code, message, ...profileData } = crawlerResponse
 
-          if (code !== 0 || message !== 'success') throw new Error(`API error! code: ${code}, message: ${message}`)
+          if (code !== 0 || message !== 'success') {
+            throw new Error(`API error! code: ${code}, message: ${message}`)
+          }
 
           const normalizedProfileData = deepFlatten(deepOmit(profileData, KEYS_TO_OMIT))
           return { data: normalizedProfileData }
@@ -348,16 +366,7 @@ class CrawlerService {
     const filteredProfileResults = creatorProfileResponses.filter(Boolean)
 
     if (isEmptyArray(filteredProfileResults)) {
-      logger.warn(`Profiles not found for creator: ${currentCreatorId}`)
-
-      if (this.state.useApi) {
-        await this.postCreatorsError({
-          data: { creator_id: currentCreatorId },
-          code: CREATOR_HAS_NO_PROFILES,
-          message: `Creator '${currentCreatorId}' has no profiles.`
-        })
-      }
-      return
+      return logger.warn(`Profiles not found for creator: ${currentCreatorId}`)
     }
 
     const creatorData: Creator = {
@@ -367,29 +376,11 @@ class CrawlerService {
       profiles: merge({}, ...filteredProfileResults.map((item) => item?.data)) as CreatorProfile
     }
 
-    logger.info(`Processed profiles for creator: ${currentCreatorId}`, creatorData)
-
     if (this.state.useApi) {
       await this.postCreatorsData(creatorData)
     }
-
     await messagingService.saveCreatorData(creatorData)
-  }
-
-  /**
-   * Stop the active crawling process
-   */
-  public stopCrawling(): void {
-    if (this.crawlTimeoutId) {
-      clearTimeout(this.crawlTimeoutId)
-      this.crawlTimeoutId = null
-      logger.info('Cleared pending crawl timeout due to STOP.')
-    }
-
-    this.state.isCrawling = false
-    storageService.updateLocalStorage({ isCrawling: false })
   }
 }
 
-// Export a singleton instance
 export const crawlerService = new CrawlerService()

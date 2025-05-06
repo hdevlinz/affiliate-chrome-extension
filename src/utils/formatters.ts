@@ -1,4 +1,4 @@
-import { isToday } from './checks'
+import { isToday } from './validators'
 
 export const kFormatter = (num: number) => {
   const regex = /\B(?=(\d{3})+(?!\d))/g

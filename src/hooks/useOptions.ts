@@ -1,60 +1,33 @@
-import { useState, useEffect, useCallback } from 'react'
 import { debounce } from 'lodash'
-import { TimeIntervalUnit } from '../types/enums'
-import { ApiConfig } from '../types'
-import { alert } from '../utils/alert'
+import { useCallback, useEffect, useState } from 'react'
 import { storageService } from '../services/storage.service'
+import { SyncStorageState } from '../types'
+import { alert } from '../utils/alert'
 import { createLogger } from '../utils/logger'
 
 const logger = createLogger('useOptions')
 
 export function useOptions() {
-  // API settings
+  const [apiKeyValue, setApiKeyValue] = useState('')
   const [creatorIdsEndpoint, setCreatorIdsEndpoint] = useState('')
   const [postCreatorDataEndpoint, setPostCreatorDataEndpoint] = useState('')
   const [postCreatorErrorEndpoint, setPostCreatorErrorEndpoint] = useState('')
-  const [apiKeyFormat, setApiKeyFormat] = useState('')
-  const [apiKeyValue, setApiKeyValue] = useState('')
-
-  // Crawl interval settings
-  const [intervalDuration, setIntervalDuration] = useState('')
-  const [intervalUnit, setIntervalUnit] = useState<TimeIntervalUnit>(TimeIntervalUnit.SECONDS)
 
   useEffect(() => {
     const loadSettings = async () => {
-      logger.debug('Loading settings from storage')
       const settings = await storageService.getSyncStorage()
 
+      setApiKeyValue(settings.apiKeyValue || '')
       setCreatorIdsEndpoint(settings.creatorIdsEndpoint || '')
       setPostCreatorDataEndpoint(settings.postCreatorDataEndpoint || '')
       setPostCreatorErrorEndpoint(settings.postCreatorErrorEndpoint || '')
-      setApiKeyFormat(settings.apiKeyFormat || '')
-      setApiKeyValue(settings.apiKeyValue || '')
-
-      const storedUnit = settings.crawlIntervalUnit || TimeIntervalUnit.SECONDS
-      setIntervalUnit(storedUnit as TimeIntervalUnit)
-
-      if (settings.crawlIntervalDuration) {
-        const durationInSeconds = Number(settings.crawlIntervalDuration)
-        let displayValue = durationInSeconds.toString()
-
-        if (storedUnit === TimeIntervalUnit.MINUTES) {
-          displayValue = (durationInSeconds / 60).toString()
-        } else if (storedUnit === TimeIntervalUnit.HOURS) {
-          displayValue = (durationInSeconds / 3600).toString()
-        }
-
-        setIntervalDuration(displayValue)
-      } else {
-        setIntervalDuration('')
-      }
     }
 
     loadSettings()
   }, [])
 
   const debouncedSaveToStorage = useCallback(
-    debounce(async (settingsToSave: Partial<ApiConfig>) => {
+    debounce(async (settingsToSave: Partial<SyncStorageState>) => {
       logger.debug('Saving settings to storage', settingsToSave)
       try {
         await storageService.updateSyncStorage(settingsToSave)
@@ -65,67 +38,49 @@ export function useOptions() {
     []
   )
 
+  const handleSaveSettings = async () => {
+    // Cancel any pending debounced save operations
+    debouncedSaveToStorage.cancel()
+
+    try {
+      await storageService.updateSyncStorage({
+        apiKeyValue,
+        creatorIdsEndpoint,
+        postCreatorDataEndpoint,
+        postCreatorErrorEndpoint,
+      })
+
+      alert.success('Settings Saved', 'Your settings have been saved successfully.')
+    } catch (error) {
+      alert.error('Save Error', 'Could not save settings.')
+    }
+  }
+
   const handleResetSettings = () => {
     alert
       .warning('Reset Settings', 'Are you sure you want to reset all settings? This action cannot be undone.')
       .then(async (result) => {
         if (result.isConfirmed) {
+          setApiKeyValue('')
           setCreatorIdsEndpoint('')
           setPostCreatorDataEndpoint('')
           setPostCreatorErrorEndpoint('')
-          setApiKeyFormat('')
-          setApiKeyValue('')
-          setIntervalDuration('')
-          setIntervalUnit(TimeIntervalUnit.SECONDS)
 
           try {
             await storageService.clearSyncStorage()
             alert.success('Settings Reset', 'All settings have been reset.')
           } catch (error) {
-            logger.error('Failed to clear sync storage', error)
             alert.error('Reset Error', 'Could not reset settings in storage.')
           }
         }
       })
   }
 
-  const handleSaveSettings = async () => {
-    // Validate interval duration if provided
-    const numericValue = parseFloat(intervalDuration)
-    if (intervalDuration !== '' && (isNaN(numericValue) || numericValue <= 0)) {
-      return alert.error('Invalid Interval', 'Interval duration must be empty or a positive number.')
+  useEffect(() => {
+    if (apiKeyValue !== undefined) {
+      debouncedSaveToStorage({ apiKeyValue })
     }
-
-    // Cancel any pending debounced save operations
-    debouncedSaveToStorage.cancel()
-
-    // Convert interval duration to seconds based on selected unit
-    const durationInSeconds =
-      intervalDuration === '' || isNaN(numericValue) || numericValue <= 0
-        ? undefined
-        : intervalUnit === TimeIntervalUnit.MINUTES
-          ? numericValue * 60
-          : intervalUnit === TimeIntervalUnit.HOURS
-            ? numericValue * 3600
-            : numericValue
-
-    try {
-      await storageService.updateSyncStorage({
-        creatorIdsEndpoint,
-        postCreatorDataEndpoint,
-        postCreatorErrorEndpoint,
-        apiKeyFormat,
-        apiKeyValue,
-        crawlIntervalDuration: durationInSeconds,
-        crawlIntervalUnit: intervalUnit
-      })
-
-      alert.success('Settings Saved', 'Your settings have been saved successfully.')
-    } catch (error) {
-      logger.error('Failed to save settings', error)
-      alert.error('Save Error', 'Could not save settings.')
-    }
-  }
+  }, [apiKeyValue, debouncedSaveToStorage])
 
   useEffect(() => {
     if (creatorIdsEndpoint !== undefined) {
@@ -145,60 +100,15 @@ export function useOptions() {
     }
   }, [postCreatorErrorEndpoint, debouncedSaveToStorage])
 
-  useEffect(() => {
-    if (apiKeyFormat !== undefined) {
-      debouncedSaveToStorage({ apiKeyFormat })
-    }
-  }, [apiKeyFormat, debouncedSaveToStorage])
-
-  useEffect(() => {
-    if (apiKeyValue !== undefined) {
-      debouncedSaveToStorage({ apiKeyValue })
-    }
-  }, [apiKeyValue, debouncedSaveToStorage])
-
-  useEffect(() => {
-    const numericValue = parseFloat(intervalDuration)
-    if (!isNaN(numericValue) && numericValue > 0) {
-      const durationInSeconds =
-        intervalUnit === TimeIntervalUnit.MINUTES
-          ? numericValue * 60
-          : intervalUnit === TimeIntervalUnit.HOURS
-            ? numericValue * 3600
-            : numericValue
-
-      debouncedSaveToStorage({
-        crawlIntervalDuration: durationInSeconds,
-        crawlIntervalUnit: intervalUnit
-      })
-    } else if (intervalDuration === '') {
-      debouncedSaveToStorage({
-        crawlIntervalDuration: undefined,
-        crawlIntervalUnit: intervalUnit
-      })
-    }
-  }, [intervalDuration, intervalUnit, debouncedSaveToStorage])
-
   return {
-    // API settings
+    apiKeyValue,
+    setApiKeyValue,
     creatorIdsEndpoint,
     setCreatorIdsEndpoint,
     postCreatorDataEndpoint,
     setPostCreatorDataEndpoint,
     postCreatorErrorEndpoint,
     setPostCreatorErrorEndpoint,
-    apiKeyFormat,
-    setApiKeyFormat,
-    apiKeyValue,
-    setApiKeyValue,
-
-    // Interval settings
-    intervalDuration,
-    setIntervalDuration,
-    intervalUnit,
-    setIntervalUnit,
-
-    // Actions
     handleSaveSettings,
     handleResetSettings
   }

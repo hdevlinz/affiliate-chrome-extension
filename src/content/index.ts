@@ -1,10 +1,10 @@
 import { AFFILIATE_TIKTOK_HOST, FIND_CREATOR_PATH } from '../config/constants'
-import { ActionType } from '../types/enums'
-import { InterceptData } from '../types'
-import { createLogger } from '../utils/logger'
-import { injector } from '../utils/injector'
 import { crawlerService } from '../services/crawler.service'
 import { storageService } from '../services/storage.service'
+import { InterceptData } from '../types'
+import { ActionType } from '../types/enums'
+import { injector } from '../utils/injector'
+import { createLogger } from '../utils/logger'
 
 const logger = createLogger('Content')
 
@@ -37,18 +37,18 @@ const setupMessageListeners = (): void => {
 
         // Update storage with new session data
         await storageService.updateLocalStorage({
-          useApi,
           isCrawling: true,
           startTime,
+          currentCreatorIndex: 0,
           creatorIds,
           crawledCreators: [],
           notFoundCreators: [],
-          currentCreatorIndex: 0,
+          useApi,
           processCount: 0
         })
 
         // Start crawling
-        await crawlerService.initializeAndStart(useApi, creatorIds, startTime)
+        await crawlerService.startCrawling(useApi, creatorIds, startTime)
         break
       }
 
@@ -60,12 +60,12 @@ const setupMessageListeners = (): void => {
 
         // Configure the crawler with existing data
         crawlerService.updateState({
-          isCrawling: true,
           useApi: localSettings.useApi || false,
-          creatorIds: localSettings.creatorIds || [],
-          notFoundCreators: localSettings.notFoundCreators || [],
+          isCrawling: true,
+          startTime: localSettings.startTime || Date.now(),
           currentCreatorIndex: localSettings.currentCreatorIndex || 0,
-          startTime: localSettings.startTime || Date.now()
+          creatorIds: localSettings.creatorIds || [],
+          notFoundCreators: localSettings.notFoundCreators || []
         })
 
         // Continue the crawling process

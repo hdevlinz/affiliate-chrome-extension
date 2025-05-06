@@ -1,11 +1,3 @@
-import { TimeIntervalUnit } from './enums'
-
-export interface CrawlError {
-  data: { [key: string]: any }
-  code: string
-  message: string
-}
-
 export interface CreatorProfile {
   [key: string]: any
 }
@@ -17,14 +9,16 @@ export interface Creator {
   profiles: CreatorProfile
 }
 
-export interface NotificationOptions {
-  title: string
+export interface CrawlError {
+  data: { [key: string]: any }
+  code: string
   message: string
 }
 
-export interface StorageState {
+export interface LocalStorageState {
   useApi: boolean
   isCrawling: boolean
+  isAutoCrawling: boolean
   startTime: number
   processCount: number
   crawlDurationSeconds: number
@@ -32,18 +26,13 @@ export interface StorageState {
   crawledCreators: Creator[]
   notFoundCreators: string[]
   currentCreatorIndex: number
-  crawlIntervalDuration: number
-  crawlIntervalUnit: TimeIntervalUnit
 }
 
-export interface ApiConfig {
+export interface SyncStorageState {
+  apiKeyValue: string
   creatorIdsEndpoint: string
   postCreatorDataEndpoint: string
   postCreatorErrorEndpoint: string
-  apiKeyFormat: string
-  apiKeyValue: string
-  crawlIntervalDuration: number
-  crawlIntervalUnit: TimeIntervalUnit
 }
 
 export interface ExtensionMessage {
@@ -51,12 +40,17 @@ export interface ExtensionMessage {
   [key: string]: any
 }
 
-export interface InterceptData {
-  url: string
-  requestHeaders: Record<string, string>
-  responsePayload: any
+export interface NotificationOptions {
+  title: string
+  message: string
 }
 
-export interface AlertOptions {
-  [key: string]: any
+export interface InterceptData {
+  url: string
+  method: string
+  query: Record<string, string>
+  status: number
+  requestHeaders: any
+  requestPayload: any
+  responsePayload: any
 }
