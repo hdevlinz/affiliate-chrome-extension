@@ -1,3 +1,17 @@
+## [1.6.5](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.4...v1.6.5) (2025-05-06)
+
+### 🐛 Bug Fixes
+
+* Popup Page ([421eaca](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/421eaca98b5609f8b81d77978ff0906812ea4bea))
+
+### 🛠 Miscellaneous Chores
+
+* Refactor Options component to streamline API key handling and remove unused settings ([ce557b7](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/ce557b709e5d4cf46685bec737505d273ae0754f))
+
+### 🔧 Code Refactoring
+
+* Overhaul UI, introduce services/hooks, and improve core logic ([d24915a](https://github.com/hdevlinz/tiktok-affiliate-crawler/commit/d24915aa9b9ac7baa94a4267e8848def14f332e5))
+
 ## [1.6.4](https://github.com/hdevlinz/tiktok-affiliate-crawler/compare/v1.6.3...v1.6.4) (2025-04-01)
 
 ### 🛠 Miscellaneous Chores
