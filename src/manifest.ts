@@ -14,7 +14,7 @@ export default defineManifest({
     48: 'img/logo-48.png',
     128: 'img/logo-128.png'
   },
-  host_permissions: ['*://*.affiliate.tiktok.com/*'],
+  host_permissions: ['*://*.tiktok.com/*'],
   permissions: ['tabs', 'activeTab', 'sidePanel', 'storage', 'scripting', 'notifications'],
   action: {
     // default_popup: 'templates/popup.html',
@@ -35,7 +35,7 @@ export default defineManifest({
   },
   content_scripts: [
     {
-      matches: ['*://*.affiliate.tiktok.com/*'],
+      matches: ['*://*.tiktok.com/*'],
       js: ['src/content/index.ts'],
       run_at: 'document_start'
     }
@@ -62,7 +62,7 @@ export default defineManifest({
         'inject/**',
         'templates/**'
       ],
-      matches: ['*://*.affiliate.tiktok.com/*']
+      matches: ['*://*.tiktok.com/*']
     }
   ]
 })

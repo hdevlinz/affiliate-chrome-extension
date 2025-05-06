@@ -1,31 +1,46 @@
 import { logger } from './logger'
 
 export const injector = {
+  injectExternalJS: (src: string) => {
+    const scriptElement = document.createElement('script')
+    scriptElement.setAttribute('type', 'text/javascript')
+    scriptElement.setAttribute('src', src)
+    document.documentElement.appendChild(scriptElement)
+  },
+
+  injectExternalCSS: (href: string) => {
+    const linkElement = document.createElement('link')
+    linkElement.setAttribute('rel', 'stylesheet')
+    linkElement.setAttribute('type', 'text/css')
+    linkElement.setAttribute('href', href)
+    document.documentElement.appendChild(linkElement)
+  },
+
   injectSidePanel: () => {
     logger.info('Injector Script: Injecting side panel')
 
-    const aduSidePanelDiv = document.createElement('div')
-    aduSidePanelDiv.id = 'devlin-sidepanel-container'
-    document.body.appendChild(aduSidePanelDiv)
+    const sidePanelDiv = document.createElement('div')
+    sidePanelDiv.id = 'sidepanel-container'
+    document.body.appendChild(sidePanelDiv)
 
-    const aduIframe = document.createElement('iframe')
-    aduIframe.id = 'devlin-sidepanel-iframe'
-    aduIframe.src = chrome.runtime.getURL('templates/sidepanel.html')
-    aduSidePanelDiv.appendChild(aduIframe)
+    const iframe = document.createElement('iframe')
+    iframe.id = 'sidepanel-iframe'
+    iframe.src = chrome.runtime.getURL('templates/sidepanel.html')
+    sidePanelDiv.appendChild(iframe)
 
-    const aduCloseButton = document.createElement('span')
-    aduCloseButton.innerHTML = 'X'
-    aduCloseButton.id = 'devlin-sidepanel-close-icon'
-    aduCloseButton.onclick = () => aduSidePanelDiv.remove()
-    aduSidePanelDiv.appendChild(aduCloseButton)
+    const closeButton = document.createElement('span')
+    closeButton.innerHTML = 'X'
+    closeButton.id = 'sidepanel-close-icon'
+    closeButton.onclick = () => sidePanelDiv.remove()
+    sidePanelDiv.appendChild(closeButton)
 
-    const aduSpliter = document.createElement('div')
-    aduSpliter.id = 'devlin-sidepanel-spliter'
-    aduSidePanelDiv.appendChild(aduSpliter)
+    const spliterDiv = document.createElement('div')
+    spliterDiv.id = 'sidepanel-spliter'
+    sidePanelDiv.appendChild(spliterDiv)
 
     const root = document.documentElement
-    const spliter = aduSpliter
-    const cd1 = aduSidePanelDiv
+    const spliter = spliterDiv
+    const cd1 = sidePanelDiv
     let isDown = false
     let isHover = false
     let minWidth = 200
@@ -83,20 +98,5 @@ export const injector = {
       isHover = false
       spliter.style.cursor = 'default'
     })
-  },
-
-  injectExternalJS: (src: string) => {
-    const scriptElement = document.createElement('script')
-    scriptElement.setAttribute('type', 'text/javascript')
-    scriptElement.setAttribute('src', src)
-    document.documentElement.appendChild(scriptElement)
-  },
-
-  injectExternalCSS: (href: string) => {
-    const linkElement = document.createElement('link')
-    linkElement.setAttribute('rel', 'stylesheet')
-    linkElement.setAttribute('type', 'text/css')
-    linkElement.setAttribute('href', href)
-    document.documentElement.appendChild(linkElement)
   }
 }

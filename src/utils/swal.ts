@@ -20,7 +20,7 @@ const Toast = Swal.mixin({
   }
 })
 
-const ADUSwal = (params: { title: string; text: string; icon: SwalIconType; [key: string]: any }) => {
+const MySwal = (params: { title: string; text: string; icon: SwalIconType; [key: string]: any }) => {
   return Swal.fire({
     ...params,
     theme: 'auto',
@@ -32,7 +32,7 @@ const ADUSwal = (params: { title: string; text: string; icon: SwalIconType; [key
   })
 }
 
-const ADUToast = (params: { title: string; text: string; icon: SwalIconType; [key: string]: any }) => {
+const MyToast = (params: { title: string; text: string; icon: SwalIconType; [key: string]: any }) => {
   return Toast.fire({
     ...params,
     theme: 'auto',
@@ -43,11 +43,11 @@ const ADUToast = (params: { title: string; text: string; icon: SwalIconType; [ke
 
 export const swal = {
   info: (title: string, text: string, options: any = {}) => {
-    return ADUSwal({ title, text, icon: SwalIconType.INFO, ...options })
+    return MySwal({ title, text, icon: SwalIconType.INFO, ...options })
   },
 
   success: (title: string, text: string, options: any = {}) => {
-    return ADUSwal({
+    return MySwal({
       title,
       text,
       icon: SwalIconType.SUCCESS,
@@ -58,7 +58,7 @@ export const swal = {
   },
 
   warning: (title: string, text: string, options: any = {}) => {
-    return ADUSwal({
+    return MySwal({
       title,
       text,
       icon: SwalIconType.WARNING,
@@ -72,11 +72,11 @@ export const swal = {
   },
 
   error: (title: string, text: string, options: any = {}) => {
-    return ADUSwal({ title, text, icon: SwalIconType.ERROR, ...options })
+    return MySwal({ title, text, icon: SwalIconType.ERROR, ...options })
   },
 
   question: (title: string, text: string, options: any = {}) => {
-    return ADUSwal({
+    return MySwal({
       title,
       text,
       icon: SwalIconType.QUESTION,
@@ -92,18 +92,18 @@ export const swal = {
 
 export const toast = {
   info: (title: string, text: string, options: any = {}) => {
-    return ADUToast({ title, text, icon: SwalIconType.INFO, ...options })
+    return MyToast({ title, text, icon: SwalIconType.INFO, ...options })
   },
 
   success: (title: string, text: string, options: any = {}) => {
-    return ADUToast({ title, text, icon: SwalIconType.SUCCESS, ...options })
+    return MyToast({ title, text, icon: SwalIconType.SUCCESS, ...options })
   },
 
   warning: (title: string, text: string, options: any = {}) => {
-    return ADUToast({ title, text, icon: SwalIconType.WARNING, ...options })
+    return MyToast({ title, text, icon: SwalIconType.WARNING, ...options })
   },
 
   error: (title: string, text: string, options: any = {}) => {
-    return ADUToast({ title, text, icon: SwalIconType.ERROR, ...options })
+    return MyToast({ title, text, icon: SwalIconType.ERROR, ...options })
   }
 }
