@@ -961,3 +961,4 @@ fabric.properties
 *.loc.*
 /schema.json
 storage/
+temp/

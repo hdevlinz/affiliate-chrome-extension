@@ -25,11 +25,8 @@ export const DEFAULT_STORAGE_STATE = {
   isCrawling: false,
   startTime: 0,
   processCount: 0,
-  crawlDurationSeconds: 0,
   creatorIds: [],
   crawledCreators: [],
   notFoundCreators: [],
-  currentCreatorIndex: 0,
-  crawlIntervalDuration: 120,
-  crawlIntervalUnit: 'seconds'
+  currentCreatorIndex: 0
 }

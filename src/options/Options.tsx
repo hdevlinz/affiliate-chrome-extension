@@ -1,23 +1,16 @@
 import { useOptions } from '../hooks/useOptions'
-import { TimeIntervalUnit } from '../types/enums'
 import './Options.scss'
 
 export const Options = () => {
   const {
+    apiKeyValue,
+    setApiKeyValue,
     creatorIdsEndpoint,
     setCreatorIdsEndpoint,
     postCreatorDataEndpoint,
     setPostCreatorDataEndpoint,
     postCreatorErrorEndpoint,
     setPostCreatorErrorEndpoint,
-    apiKeyFormat,
-    setApiKeyFormat,
-    apiKeyValue,
-    setApiKeyValue,
-    intervalDuration,
-    setIntervalDuration,
-    intervalUnit,
-    setIntervalUnit,
     handleSaveSettings,
     handleResetSettings
   } = useOptions()
@@ -33,27 +26,13 @@ export const Options = () => {
         <div className="options__row options__row--api-key">
           <div className="api-key-group">
             <div className="api-key-group__column">
-              <label htmlFor="api-key-format" className="options__label">
-                API Key Format:
-              </label>
-              <input
-                id="api-key-format"
-                className="options__input"
-                type="text"
-                placeholder="e.g., X-API-Key"
-                value={apiKeyFormat}
-                onChange={(e) => setApiKeyFormat(e.target.value)}
-              />
-            </div>
-
-            <div className="api-key-group__column">
               <label htmlFor="api-key-value" className="options__label">
                 API Key Value:
               </label>
               <input
                 id="api-key-value"
                 className="options__input"
-                type="text"
+                type="password"
                 placeholder="Enter API Key Value"
                 value={apiKeyValue}
                 onChange={(e) => setApiKeyValue(e.target.value)}
@@ -69,7 +48,7 @@ export const Options = () => {
           <input
             id="get-creator-ids-endpoint"
             className="options__input"
-            type="url"
+            type="text"
             placeholder="Enter URL to fetch creator IDs"
             value={creatorIdsEndpoint}
             onChange={(e) => setCreatorIdsEndpoint(e.target.value)}
@@ -83,7 +62,7 @@ export const Options = () => {
           <input
             id="post-creator-data-endpoint"
             className="options__input"
-            type="url"
+            type="text"
             placeholder="Enter URL to send crawled data"
             value={postCreatorDataEndpoint}
             onChange={(e) => setPostCreatorDataEndpoint(e.target.value)}
@@ -97,7 +76,7 @@ export const Options = () => {
           <input
             id="post-creator-errors-endpoint"
             className="options__input"
-            type="url"
+            type="text"
             placeholder="Enter URL to send error reports"
             value={postCreatorErrorEndpoint}
             onChange={(e) => setPostCreatorErrorEndpoint(e.target.value)}
@@ -105,44 +84,10 @@ export const Options = () => {
         </div>
       </section>
 
-      {/* Other Configuration Section */}
-      <section className="options__section">
-        <h3 className="section-title">Auto Crawl Configuration</h3>
-
-        <div className="options__row">
-          <label htmlFor="crawl-interval-duration" className="options__label">
-            Auto Crawl Interval:
-          </label>
-          <div className="options__input-group">
-            <input
-              id="crawl-interval-duration"
-              className="options__input options__input--interval-duration"
-              type="number"
-              min="1"
-              placeholder="Duration"
-              value={intervalDuration}
-              onChange={(e) => setIntervalDuration(e.target.value)}
-            />
-
-            <select
-              id="crawl-interval-unit"
-              className="options__input options__input--interval-unit"
-              value={intervalUnit}
-              onChange={(e) => setIntervalUnit(e.target.value as TimeIntervalUnit)}
-            >
-              <option value={TimeIntervalUnit.SECONDS}>Seconds</option>
-              <option value={TimeIntervalUnit.MINUTES}>Minutes</option>
-              <option value={TimeIntervalUnit.HOURS}>Hours</option>
-            </select>
-          </div>
-        </div>
-      </section>
-
       {/* Actions Section */}
       <section className="options__section">
         <h3 className="section-title">Actions</h3>
         <div className="options__row options__row--actions">
-          {/* Use reusable button class + modifier */}
           <button className="button button--reset" onClick={handleResetSettings}>
             Reset All Settings
           </button>

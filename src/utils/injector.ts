@@ -1,6 +1,21 @@
 import { logger } from './logger'
 
 export const injector = {
+  injectExternalJS: (src: string) => {
+    const scriptElement = document.createElement('script')
+    scriptElement.setAttribute('type', 'text/javascript')
+    scriptElement.setAttribute('src', src)
+    document.documentElement.appendChild(scriptElement)
+  },
+
+  injectExternalCSS: (href: string) => {
+    const linkElement = document.createElement('link')
+    linkElement.setAttribute('rel', 'stylesheet')
+    linkElement.setAttribute('type', 'text/css')
+    linkElement.setAttribute('href', href)
+    document.documentElement.appendChild(linkElement)
+  },
+
   injectSidePanel: () => {
     logger.info('Injector Script: Injecting side panel')
 
@@ -83,20 +98,5 @@ export const injector = {
       isHover = false
       spliter.style.cursor = 'default'
     })
-  },
-
-  injectExternalJS: (src: string) => {
-    const scriptElement = document.createElement('script')
-    scriptElement.setAttribute('type', 'text/javascript')
-    scriptElement.setAttribute('src', src)
-    document.documentElement.appendChild(scriptElement)
-  },
-
-  injectExternalCSS: (href: string) => {
-    const linkElement = document.createElement('link')
-    linkElement.setAttribute('rel', 'stylesheet')
-    linkElement.setAttribute('type', 'text/css')
-    linkElement.setAttribute('href', href)
-    document.documentElement.appendChild(linkElement)
   }
 }

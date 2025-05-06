@@ -1,28 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { messagingService } from '../services/messaging.service'
 import { storageService } from '../services/storage.service'
+import { ActionType } from '../types/enums'
 import { alert } from '../utils/alert'
-import { isEmpty, isEmptyArray, isNullOrUndefined } from '../utils/checks'
 import { formatSeconds, getFormattedDate } from '../utils/formatters'
 import { exportFile } from '../utils/helpers'
 import { createLogger } from '../utils/logger'
+import { isEmpty, isEmptyArray, isNullOrUndefined } from '../utils/validators'
 
 const logger = createLogger('useCrawler')
 
 export function useCrawler() {
+  const [useApi, setUseApi] = useState(false)
+  const [isCrawling, setIsCrawling] = useState(false)
+  const [canContinue, setCanContinue] = useState(false)
+  const [isAutoCrawling, setIsAutoCrawling] = useState(false)
   const [creatorIds, setCreatorIds] = useState<string[]>([])
   const [notFoundCreators, setNotFoundCreators] = useState<string[]>([])
   const [processCount, setProcessCount] = useState(0)
   const [crawledCount, setCrawledCount] = useState(0)
   const [crawlProgress, setCrawlProgress] = useState(0)
   const [crawlDuration, setCrawlDuration] = useState<string | null>(null)
-  const [crawlIntervalDuration, setCrawlIntervalDuration] = useState<number>(120)
-  const [useApi, setUseApi] = useState(false)
-  const [isCrawling, setIsCrawling] = useState(false)
-  const [canContinue, setCanContinue] = useState(false)
-  const [isAutoCrawling, setIsAutoCrawling] = useState(false)
 
-  const autoCrawlIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,16 +79,15 @@ export function useCrawler() {
 
     // Clear previous crawl data
     await storageService.updateLocalStorage({
+      currentCreatorIndex: 0,
       processCount: 0,
       crawlDurationSeconds: 0,
       crawledCreators: [],
-      notFoundCreators: [],
-      currentCreatorIndex: 0
+      notFoundCreators: []
     })
 
     try {
       await messagingService.startCrawling(useApi, validIds)
-      logger.info('Crawl started successfully')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Error starting crawl:', error)
@@ -177,14 +175,12 @@ export function useCrawler() {
         'Resetting the crawl will clear all crawled data and stop the current process. Are you sure you want to proceed?'
       )
       .then(async (result) => {
-        if (!result.isConfirmed) return
+        if (!result.isConfirmed) {
+          return
+        }
 
         if (isAutoCrawling) {
           setIsAutoCrawling(false)
-          if (autoCrawlIntervalRef.current) {
-            clearInterval(autoCrawlIntervalRef.current)
-            autoCrawlIntervalRef.current = null
-          }
         }
 
         // Reset local state
@@ -202,11 +198,12 @@ export function useCrawler() {
           useApi: false,
           isCrawling: false,
           processCount: 0,
+          currentCreatorIndex: 0,
           crawlDurationSeconds: 0,
           creatorIds: [],
           crawledCreators: [],
           notFoundCreators: [],
-          currentCreatorIndex: 0
+          isAutoCrawling: false
         })
 
         try {
@@ -250,7 +247,6 @@ export function useCrawler() {
   const handleFetchAPI = async (): Promise<string[] | undefined> => {
     const syncResult = await storageService.getSyncStorage()
     if (isEmpty(syncResult.creatorIdsEndpoint)) {
-      logger.error('API Error: Get Creator IDs URL is not set.')
       alert.error('API Error', 'Get Creator IDs URL is not set in settings.').then(() => setUseApi(false))
       return undefined
     }
@@ -266,39 +262,44 @@ export function useCrawler() {
         throw new Error('Creator IDs endpoint URL is not properly configured')
       }
 
-      logger.info(`Fetching creator IDs from: ${syncResult.creatorIdsEndpoint}`)
-      const headers: HeadersInit = {}
-      if (syncResult.apiKeyFormat && syncResult.apiKeyValue) {
-        headers[syncResult.apiKeyFormat] = syncResult.apiKeyValue
+      const [url, endpoint] = syncResult.creatorIdsEndpoint.split(':endpoint/')
+      logger.info(`Fetching creator IDs from: ${url} with endpoint ${endpoint}`)
+
+      let headers: HeadersInit = {}
+      if (syncResult.apiKeyValue) {
+        headers = {
+          ...headers,
+          'X-API-Key': syncResult.apiKeyValue
+        }
       }
 
-      const response = await fetch(syncResult.creatorIdsEndpoint, {
-        method: 'GET',
-        headers: headers
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ endpoint })
       })
 
       if (!response.ok) {
         setUseApi(false)
-        logger.error(`API Error ${response.status}: Failed to fetch creator IDs.`)
         alert.error('API Error', `Failed to fetch creator IDs. Status: ${response.status}. Check console for details.`)
         return undefined
       }
 
       const jsonData = await response.json()
-      if (!Array.isArray(jsonData)) {
+      if (isNullOrUndefined(jsonData.data) || !isEmptyArray(jsonData.data.items)) {
         setUseApi(false)
-        logger.error('API Error: Response is not a JSON array.')
-        alert.error('API Error', 'Invalid data format received from API (expected an array).')
         return undefined
       }
 
-      const extractedCreatorIds = jsonData
+      const extractedCreatorIds = jsonData.data.items
         .map((creator: any) => creator?.id)
-        .filter((id): id is string => typeof id === 'string' && id.trim() !== '')
+        .filter((id: any): id is string => typeof id === 'string' && id.trim() !== '')
 
       if (isEmptyArray(extractedCreatorIds)) {
         setUseApi(false)
-        logger.warn('API Warning: No valid creator IDs found in the API response.')
         alert.error('API Error', 'No valid creator IDs were found in the API response.')
         return undefined
       }
@@ -306,21 +307,18 @@ export function useCrawler() {
       await storageService.updateLocalStorage({ creatorIds: extractedCreatorIds })
       setCreatorIds(extractedCreatorIds)
 
-      logger.info(`Fetched ${extractedCreatorIds.length} creator IDs.`)
       alert.success('Creator IDs Fetched', `Successfully fetched ${extractedCreatorIds.length} creator IDs.`)
 
       return extractedCreatorIds
     } catch (error: any) {
       setUseApi(false)
-      logger.error('Error fetching creator IDs:', error)
       alert.error('API Error', `An error occurred while trying to fetch creator IDs: ${error.message}`)
       return undefined
     }
   }
 
   const performAutoCrawlCycle = async () => {
-    const { isCrawling: currentlyCrawling } = await storageService.getLocalStorage()
-    if (currentlyCrawling) {
+    if (isCrawling) {
       logger.info('Auto-crawl cycle skipped: A crawl is already in progress.')
       return
     }
@@ -348,37 +346,69 @@ export function useCrawler() {
   const handleToggleAutoCrawl = () => {
     setIsAutoCrawling((prev) => {
       const newState = !prev
+      storageService.updateLocalStorage({ isAutoCrawling: newState })
+
       if (newState) {
-        alert.info('Auto Crawl Started', 'The auto crawl cycle will now run periodically.')
-        logger.info('Auto-crawling started')
+        alert.info(
+          'Auto Crawl Started',
+          'The crawler will automatically start a new crawl when the current one completes.'
+        )
+
+        // If we're not currently crawling, start the first cycle
+        if (!isCrawling) {
+          performAutoCrawlCycle()
+        }
       } else {
-        alert.info('Auto Crawl Stopped', 'The auto crawl cycle has been stopped.')
-        logger.info('Auto-crawling stopped')
+        alert.info('Auto Crawl Stopped', 'The auto crawl has been disabled.')
       }
+
       return newState
     })
   }
 
+  // Handle message from content script when crawling is completed
+  useEffect(() => {
+    const handleCrawlComplete = () => {
+      logger.info('Received crawl complete message from content script')
+
+      // Check if auto crawling is enabled and start a new crawl if it is
+      storageService.getLocalStorage().then((state) => {
+        if (state.isAutoCrawling) {
+          logger.info('Auto crawl is enabled, starting new crawl cycle')
+          setTimeout(performAutoCrawlCycle, 2000)
+        }
+      })
+    }
+
+    // Listen for messages from content script
+    const messageListener = (message: any) => {
+      if (message.action === ActionType.COMPLETED_CRAWLING) {
+        handleCrawlComplete()
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(messageListener)
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener)
+    }
+  }, [])
+
   useEffect(() => {
     const initializeState = async () => {
-      logger.debug('Initializing component state from storage')
       const localResult = await storageService.getLocalStorage()
-      const syncResult = await storageService.getSyncStorage()
 
       const storedCreatorIds = localResult.creatorIds || []
       const totalCreatorIdsCount = storedCreatorIds.length
-      const currentIdx = localResult.currentCreatorIndex
+      const currentIdx = localResult.currentCreatorIndex ?? 0
       const processCnt = localResult.processCount ?? 0
       const crawledCreatorsCount = localResult.crawledCreators?.length ?? 0
 
       const initialIsCrawling = !!localResult.isCrawling
-      const initialCanContinue =
-        !initialIsCrawling &&
-        !isNullOrUndefined(currentIdx) &&
-        currentIdx < totalCreatorIdsCount &&
-        totalCreatorIdsCount > 0
+      const initialCanContinue = totalCreatorIdsCount > 0 && currentIdx > 0 && currentIdx < totalCreatorIdsCount
       const initialProgress = totalCreatorIdsCount > 0 ? Math.round((processCnt / totalCreatorIdsCount) * 100) : 0
       const initialNotFound = localResult.notFoundCreators || []
+      const initialIsAutoCrawling = !!localResult.isAutoCrawling
 
       setUseApi(!!localResult.useApi)
       setIsCrawling(initialIsCrawling)
@@ -389,7 +419,7 @@ export function useCrawler() {
       setCrawlDuration(formatSeconds(localResult.crawlDurationSeconds))
       setCreatorIds(storedCreatorIds)
       setNotFoundCreators(initialNotFound)
-      setCrawlIntervalDuration(syncResult.crawlIntervalDuration || 120)
+      setIsAutoCrawling(initialIsAutoCrawling)
     }
 
     initializeState()
@@ -399,32 +429,49 @@ export function useCrawler() {
       areaName: chrome.storage.AreaName
     ) => {
       if (areaName === 'local') {
-        if (changes.useApi) setUseApi(!!changes.useApi.newValue)
-        if (changes.isCrawling) setIsCrawling(!!changes.isCrawling.newValue)
-        if (changes.creatorIds) setCreatorIds(changes.creatorIds.newValue || [])
-        if (changes.crawledCreators) setCrawledCount((changes.crawledCreators.newValue || []).length)
-        if (changes.notFoundCreators) setNotFoundCreators(changes.notFoundCreators.newValue || [])
-        if (changes.crawlDurationSeconds) setCrawlDuration(formatSeconds(changes.crawlDurationSeconds.newValue))
+        if (changes.useApi) {
+          setUseApi(!!changes.useApi.newValue)
+        }
+
+        if (changes.isCrawling) {
+          setIsCrawling(!!changes.isCrawling.newValue)
+        }
+
+        if (changes.creatorIds) {
+          setCreatorIds(changes.creatorIds.newValue || [])
+        }
+
+        if (changes.crawledCreators) {
+          setCrawledCount((changes.crawledCreators.newValue || []).length)
+        }
+
+        if (changes.notFoundCreators) {
+          setNotFoundCreators(changes.notFoundCreators.newValue || [])
+        }
+
+        if (changes.crawlDurationSeconds) {
+          setCrawlDuration(formatSeconds(changes.crawlDurationSeconds.newValue))
+        }
+
+        if (changes.isAutoCrawling) {
+          setIsAutoCrawling(!!changes.isAutoCrawling.newValue)
+        }
 
         // Recalculate derived values
         storageService.getLocalStorage().then((localResult) => {
-          const currentIsCrawling = !!localResult.isCrawling
           const currentIds = localResult.creatorIds || []
-          const totalCount = currentIds.length
-          const currentIdx = localResult.currentCreatorIndex
+          const currentIdx = localResult.currentCreatorIndex ?? 0
           const processCnt = localResult.processCount ?? 0
+          const totalCount = currentIds.length
 
           setProcessCount(processCnt)
 
-          const updatedCanContinue =
-            !currentIsCrawling && !isNullOrUndefined(currentIdx) && currentIdx < totalCount && totalCount > 0
+          const updatedCanContinue = totalCount > 0 && currentIdx > 0 && currentIdx < totalCount
           setCanContinue(updatedCanContinue)
 
           const calculatedProgress = totalCount > 0 ? Math.round((processCnt / totalCount) * 100) : 0
           setCrawlProgress(calculatedProgress)
         })
-      } else if (areaName === 'sync' && changes.crawlIntervalDuration) {
-        setCrawlIntervalDuration(changes.crawlIntervalDuration.newValue || 120)
       }
     }
 
@@ -432,48 +479,54 @@ export function useCrawler() {
 
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange)
-      if (autoCrawlIntervalRef.current) {
-        clearInterval(autoCrawlIntervalRef.current)
-        autoCrawlIntervalRef.current = null
-      }
     }
   }, [])
 
   useEffect(() => {
     storageService.updateLocalStorage({ useApi })
     if (useApi && !isCrawling && !isAutoCrawling) {
-      logger.info('useApi enabled, fetching IDs')
-      handleFetchAPI()
+      const fetchIfNeeded = async () => {
+        const { creatorIds: existingIds } = await storageService.getLocalStorage()
+        if (isEmptyArray(existingIds)) {
+          logger.info('useApi enabled with no existing IDs, fetching IDs')
+          handleFetchAPI()
+        } else {
+          logger.info('useApi enabled with existing IDs, skipping fetch')
+        }
+      }
+      fetchIfNeeded()
     }
-  }, [useApi, isCrawling, isAutoCrawling])
+  }, [useApi])
 
-  // Handle auto crawl interval
   useEffect(() => {
-    if (isAutoCrawling) {
+    const updateContinueState = async () => {
+      const localResult = await storageService.getLocalStorage()
+      const currentIds = localResult.creatorIds || []
+      const totalCount = currentIds.length
+      const currentIdx = localResult.currentCreatorIndex
+
+      const updatedCanContinue =
+        totalCount > 0 && !isNullOrUndefined(currentIdx) && currentIdx > 0 && currentIdx < totalCount
+
+      setCanContinue(updatedCanContinue)
+    }
+
+    updateContinueState()
+  }, [isCrawling, processCount, creatorIds.length])
+
+  useEffect(() => {
+    storageService.updateLocalStorage({ isAutoCrawling })
+
+    // Start initial cycle if needed
+    if (isAutoCrawling && !isCrawling) {
       if (!useApi) {
         // Auto-enable API mode if not already enabled
         setUseApi(true)
       } else {
-        // Perform initial cycle and set up interval
-        clearAutoCrawlInterval()
         performAutoCrawlCycle()
-        autoCrawlIntervalRef.current = setInterval(performAutoCrawlCycle, crawlIntervalDuration * 1000)
-        logger.info(`Auto-crawl interval set: ${crawlIntervalDuration} seconds`)
       }
-    } else {
-      clearAutoCrawlInterval()
     }
-
-    return clearAutoCrawlInterval
-  }, [isAutoCrawling, crawlIntervalDuration, useApi])
-
-  const clearAutoCrawlInterval = () => {
-    if (autoCrawlIntervalRef.current) {
-      clearInterval(autoCrawlIntervalRef.current)
-      autoCrawlIntervalRef.current = null
-      logger.info('Auto-crawl interval cleared')
-    }
-  }
+  }, [isAutoCrawling, useApi, isCrawling])
 
   const isDisabled = isCrawling || isAutoCrawling
   const totalIds = creatorIds.filter(Boolean).length
@@ -481,7 +534,6 @@ export function useCrawler() {
   const hasNotFoundData = !isEmptyArray(notFoundCreators)
 
   return {
-    // State
     creatorIds,
     setCreatorIds,
     notFoundCreators,
@@ -489,23 +541,16 @@ export function useCrawler() {
     crawledCount,
     crawlProgress,
     crawlDuration,
-    crawlIntervalDuration,
     useApi,
     setUseApi,
     isCrawling,
     canContinue,
     isAutoCrawling,
-
-    // Derived state
     isDisabled,
     totalIds,
     hasCrawledData,
     hasNotFoundData,
-
-    // Refs
     fileInputRef,
-
-    // Actions
     handleFileChange,
     handleOpenOptionsPage,
     handleStartCrawl,

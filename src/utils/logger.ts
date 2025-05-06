@@ -53,51 +53,30 @@ class Logger {
     }
   }
 
-  /**
-   * Standard log level message
-   */
   public logGeneric(message: string, data?: any): void {
     this.log(message, data)
   }
 
-  /**
-   * Info level log for general information
-   */
   public info(message: string, data?: any): void {
     this.log(message, data, LogLevel.INFO)
   }
 
-  /**
-   * Warning level log for potential issues
-   */
   public warn(message: string, data?: any): void {
     this.log(message, data, LogLevel.WARN)
   }
 
-  /**
-   * Error level log for application errors
-   */
   public error(message: string, data?: any): void {
     this.log(message, data, LogLevel.ERROR)
   }
 
-  /**
-   * Debug level log for development information
-   */
   public debug(message: string, data?: any): void {
     this.log(message, data, LogLevel.DEBUG)
   }
 
-  /**
-   * Enable or disable logging
-   */
   public setEnabled(enabled: boolean): void {
     this.enabled = enabled
   }
 
-  /**
-   * Create a child logger with a custom prefix
-   */
   public createChildLogger(prefix: string): Logger {
     return new Logger({
       enabled: this.enabled,
@@ -107,10 +86,8 @@ class Logger {
   }
 }
 
-// Default application logger
 export const logger = new Logger()
 
-// Create namespace-specific loggers
 export const createLogger = (namespace: string): Logger => {
   return logger.createChildLogger(namespace)
 }
