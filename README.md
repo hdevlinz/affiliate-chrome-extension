@@ -1,4 +1,4 @@
-# Tiktok Affiliate Crawler
+# Affiliate Chrome Extension
 
 A Chrome extension for crawling affiliate data.
 
